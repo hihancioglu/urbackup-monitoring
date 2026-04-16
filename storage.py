@@ -181,20 +181,99 @@ class MonitoringStore:
             rows = conn.execute(
                 """
                 SELECT
-                    c.client_id AS client_id,
-                    c.client_name AS client_name
-                FROM clients c
-                WHERE c.client_name IS NOT NULL AND c.client_name != ''
-                UNION
-                SELECT
                     b.client_id AS client_id,
-                    b.client_name AS client_name
+                    b.client_name AS client_name,
+                    COUNT(*) AS log_count,
+                    MAX(b.created_ts) AS last_log_ts
                 FROM backup_logs b
                 WHERE b.client_name IS NOT NULL AND b.client_name != ''
+                GROUP BY b.client_id, b.client_name
                 ORDER BY client_name COLLATE NOCASE
                 """
             ).fetchall()
             return [dict(row) for row in rows]
+
+    def get_client_log_overview(self, client_id: int) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    client_id,
+                    MIN(client_name) AS client_name,
+                    COUNT(*) AS total_logs,
+                    SUM(CASE WHEN has_error = 1 THEN 1 ELSE 0 END) AS error_logs,
+                    SUM(CASE WHEN has_warning = 1 THEN 1 ELSE 0 END) AS warning_logs,
+                    MAX(created_ts) AS last_log_ts
+                FROM backup_logs
+                WHERE client_id = ?
+                GROUP BY client_id
+                """,
+                (client_id,),
+            ).fetchone()
+
+            if not row:
+                return None
+
+            return dict(row)
+
+    def get_backup_log_detail(self, log_id: int) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT
+                    log_id,
+                    client_name,
+                    client_id,
+                    action,
+                    created_ts,
+                    detail_text,
+                    raw_lastact_json,
+                    raw_detail_json,
+                    has_error,
+                    has_warning,
+                    fetched_at
+                FROM backup_logs
+                WHERE log_id = ?
+                """,
+                (log_id,),
+            ).fetchone()
+
+        if not row:
+            return None
+
+        created_at = None
+        created_ts = row["created_ts"]
+        if created_ts:
+            try:
+                created_at = datetime.fromtimestamp(int(created_ts))
+            except (TypeError, ValueError, OSError):
+                created_at = None
+
+        raw_lastact_json = row["raw_lastact_json"] or "{}"
+        raw_detail_json = row["raw_detail_json"] or "{}"
+        try:
+            lastact_payload = json.loads(raw_lastact_json)
+        except (TypeError, json.JSONDecodeError):
+            lastact_payload = {}
+        try:
+            detail_payload = json.loads(raw_detail_json)
+        except (TypeError, json.JSONDecodeError):
+            detail_payload = {}
+
+        return {
+            "log_id": row["log_id"],
+            "client_name": row["client_name"],
+            "client_id": row["client_id"],
+            "action": row["action"],
+            "created_ts": created_ts,
+            "created_at": created_at,
+            "detail_text": row["detail_text"] or "",
+            "lastact_payload": lastact_payload,
+            "detail_payload": detail_payload,
+            "has_error": bool(row["has_error"]),
+            "has_warning": bool(row["has_warning"]),
+            "fetched_at": row["fetched_at"],
+        }
 
     def get_backup_logs_page(
         self,

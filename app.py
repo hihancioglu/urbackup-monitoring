@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, render_template, request
+from flask import Flask, abort, render_template, request
 
 from main import MonitoringOrchestrator
 
@@ -35,6 +35,12 @@ def logs():
         page=page_num,
         per_page=per_page,
     )
+    client_overview = None
+    if selected_client_id:
+        try:
+            client_overview = orchestrator.collect_client_log_overview(int(selected_client_id))
+        except (TypeError, ValueError):
+            client_overview = None
 
     return render_template(
         "logs.html",
@@ -46,7 +52,16 @@ def logs():
         total_pages=log_page["total_pages"],
         selected_client_id=selected_client_id,
         query=query,
+        client_overview=client_overview,
     )
+
+
+@app.route("/logs/<int:log_id>")
+def log_detail(log_id: int):
+    log_item = orchestrator.collect_backup_log_detail(log_id)
+    if not log_item:
+        abort(404)
+    return render_template("log_detail.html", log=log_item)
 
 
 @app.route("/debug")
