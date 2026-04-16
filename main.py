@@ -101,11 +101,16 @@ class MonitoringOrchestrator:
             max_pages = int(os.getenv("URB_HISTORY_MAX_PAGES", "200"))
 
         activities = []
+        seen_log_ids: set[int] = set()
+        repeated_page_signatures: set[tuple[int | None, int | None, int]] = set()
+        zero_unique_page_streak = 0
+        max_zero_unique_pages = int(os.getenv("URB_HISTORY_MAX_ZERO_UNIQUE_PAGES", "10"))
         offset = 0
         fetched_pages = 0
         print(
             "[sync] historical fetch started "
-            f"(since_log_id={since_log_id}, max_pages={'all' if max_pages == 0 else max_pages})"
+            f"(since_log_id={since_log_id}, max_pages={'all' if max_pages == 0 else max_pages}, "
+            f"max_zero_unique_pages={max_zero_unique_pages})"
         )
 
         while True:
@@ -123,6 +128,8 @@ class MonitoringOrchestrator:
 
             reached_synced_boundary = False
             page_added = 0
+            page_unique_added = 0
+            page_log_ids = []
             for item in page_logs:
                 if not isinstance(item, dict):
                     continue
@@ -130,21 +137,52 @@ class MonitoringOrchestrator:
                 if log_id is None:
                     continue
 
+                page_log_ids.append(log_id)
+
                 if since_log_id and log_id <= since_log_id:
                     reached_synced_boundary = True
                     continue
 
                 activities.append(item)
                 page_added += 1
+                if log_id not in seen_log_ids:
+                    seen_log_ids.add(log_id)
+                    page_unique_added += 1
+
+            first_log_id = page_log_ids[0] if page_log_ids else None
+            last_log_id = page_log_ids[-1] if page_log_ids else None
+            page_signature = (first_log_id, last_log_id, len(page_logs))
+            repeated_page = page_signature in repeated_page_signatures
+            repeated_page_signatures.add(page_signature)
+
+            if page_unique_added == 0:
+                zero_unique_page_streak += 1
+            else:
+                zero_unique_page_streak = 0
 
             print(
                 "[sync] historical page fetched "
                 f"(page={fetched_pages}, offset={offset}, page_count={len(page_logs)}, "
-                f"new_collected={page_added}, total_collected={len(activities)})"
+                f"new_collected={page_added}, unique_collected={page_unique_added}, "
+                f"zero_unique_page_streak={zero_unique_page_streak}, total_collected={len(activities)})"
             )
 
             if reached_synced_boundary:
                 print("[sync] historical fetch reached previously synced boundary")
+                break
+
+            if repeated_page:
+                print(
+                    "[sync] historical fetch stopped (repeated_page_detected "
+                    f"signature={page_signature}, offset={offset})"
+                )
+                break
+
+            if max_zero_unique_pages > 0 and zero_unique_page_streak >= max_zero_unique_pages:
+                print(
+                    "[sync] historical fetch stopped (zero-unique-page threshold reached "
+                    f"threshold={max_zero_unique_pages}, offset={offset})"
+                )
                 break
 
             offset += len(page_logs)
