@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import threading
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -9,55 +10,90 @@ from typing import Iterable
 class MonitoringStore:
     def __init__(self, db_path: str = "urbackup_monitoring.db"):
         self.db_path = db_path
+        self._schema_lock = threading.Lock()
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
 
-    @contextmanager
-    def _connect(self):
+    def _open_connection(self):
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
+        return conn
+
+    def _ensure_schema(self, conn: sqlite3.Connection):
+        row = conn.execute(
+            """
+            SELECT name
+            FROM sqlite_master
+            WHERE type='table' AND name='clients'
+            """
+        ).fetchone()
+
+        if row:
+            return
+
+        with self._schema_lock:
+            row = conn.execute(
+                """
+                SELECT name
+                FROM sqlite_master
+                WHERE type='table' AND name='clients'
+                """
+            ).fetchone()
+            if row:
+                return
+            self._create_schema(conn)
+
+    @contextmanager
+    def _connect(self):
+        conn = self._open_connection()
         try:
+            self._ensure_schema(conn)
             yield conn
             conn.commit()
         finally:
             conn.close()
 
     def _init_schema(self):
-        with self._connect() as conn:
-            conn.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS clients (
-                    client_name TEXT PRIMARY KEY,
-                    client_id INTEGER,
-                    online INTEGER,
-                    last_backup_ts INTEGER,
-                    health TEXT,
-                    status_text TEXT,
-                    updated_at TEXT NOT NULL
-                );
+        with self._open_connection() as conn:
+            self._create_schema(conn)
+            conn.commit()
 
-                CREATE TABLE IF NOT EXISTS backup_logs (
-                    log_id INTEGER PRIMARY KEY,
-                    client_name TEXT,
-                    client_id INTEGER,
-                    action TEXT,
-                    created_ts INTEGER,
-                    detail_text TEXT,
-                    raw_lastact_json TEXT NOT NULL,
-                    raw_detail_json TEXT NOT NULL,
-                    has_error INTEGER NOT NULL,
-                    has_warning INTEGER NOT NULL,
-                    fetched_at TEXT NOT NULL,
-                    FOREIGN KEY(client_name) REFERENCES clients(client_name)
-                );
+    @staticmethod
+    def _create_schema(conn: sqlite3.Connection):
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS clients (
+                client_name TEXT PRIMARY KEY,
+                client_id INTEGER,
+                online INTEGER,
+                last_backup_ts INTEGER,
+                health TEXT,
+                status_text TEXT,
+                updated_at TEXT NOT NULL
+            );
 
-                CREATE TABLE IF NOT EXISTS sync_state (
-                    state_key TEXT PRIMARY KEY,
-                    state_value TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                );
-                """
-            )
+            CREATE TABLE IF NOT EXISTS backup_logs (
+                log_id INTEGER PRIMARY KEY,
+                client_name TEXT,
+                client_id INTEGER,
+                action TEXT,
+                created_ts INTEGER,
+                detail_text TEXT,
+                raw_lastact_json TEXT NOT NULL,
+                raw_detail_json TEXT NOT NULL,
+                has_error INTEGER NOT NULL,
+                has_warning INTEGER NOT NULL,
+                fetched_at TEXT NOT NULL,
+                FOREIGN KEY(client_name) REFERENCES clients(client_name)
+            );
+
+            CREATE TABLE IF NOT EXISTS sync_state (
+                state_key TEXT PRIMARY KEY,
+                state_value TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """
+        )
 
     def upsert_client(self, client_payload: dict):
         now = datetime.utcnow().isoformat(timespec="seconds")
