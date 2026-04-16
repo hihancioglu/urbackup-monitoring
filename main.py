@@ -1,16 +1,55 @@
 import os
 from datetime import datetime
+from pathlib import Path
 
 from analyzer import Analyzer
 from urbackup_api import UrBackupAPI
 
 
+def _load_local_dotenv(path: str = ".env") -> None:
+    env_file = Path(path)
+    if not env_file.exists():
+        return
+
+    for raw_line in env_file.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+def _get_env(*names: str) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            return value
+    return None
+
+
+_load_local_dotenv()
+
+
 class MonitoringOrchestrator:
     def __init__(self, api=None, analyzer=None):
+        base_url = _get_env("URB_URL", "URBACKUP_URL")
+        username = _get_env("URB_USER", "URBACKUP_USER")
+        password = _get_env("URB_PASS", "URBACKUP_PASS")
+
+        if api is None and not base_url:
+            raise ValueError(
+                "Missing UrBackup URL. Set URB_URL (or URBACKUP_URL) in your environment/.env file."
+            )
+
         self.api = api or UrBackupAPI(
-            base_url=os.getenv("URB_URL"),
-            username=os.getenv("URB_USER"),
-            password=os.getenv("URB_PASS"),
+            base_url=base_url,
+            username=username,
+            password=password,
         )
         self.analyzer = analyzer or Analyzer()
 
