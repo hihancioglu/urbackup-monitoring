@@ -94,8 +94,8 @@ class UrBackupAPI:
             return data
         return data.get("progress", [])
 
-    def logs(self, client_id=None, log_id=None):
-        payload = {"ll": 0}
+    def logs(self, client_id=None, log_id=None, ll: int = 0):
+        payload = {"ll": ll}
         if client_id is not None:
             payload["filter"] = client_id
         if log_id is not None:

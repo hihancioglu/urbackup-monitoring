@@ -67,6 +67,51 @@ class MonitoringOrchestrator:
         self._sync_thread = None
         self._sync_stop = threading.Event()
 
+    @staticmethod
+    def _extract_log_id(item: dict) -> int | None:
+        for key in ("logid", "id"):
+            value = item.get(key)
+            if value is None:
+                continue
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                continue
+        return None
+
+    def _fetch_historical_activities(self, since_log_id: int) -> list[dict]:
+        max_pages = int(os.getenv("URB_HISTORY_MAX_PAGES", "200"))
+        activities = []
+        offset = 0
+
+        for _ in range(max_pages):
+            payload = self.api.logs(ll=offset)
+            page_logs = payload.get("logs", [])
+
+            if not isinstance(page_logs, list) or not page_logs:
+                break
+
+            reached_synced_boundary = False
+            for item in page_logs:
+                if not isinstance(item, dict):
+                    continue
+                log_id = self._extract_log_id(item)
+                if log_id is None:
+                    continue
+
+                if since_log_id and log_id <= since_log_id:
+                    reached_synced_boundary = True
+                    continue
+
+                activities.append(item)
+
+            if reached_synced_boundary:
+                break
+
+            offset += len(page_logs)
+
+        return activities
+
     def _build_status_map(self):
         status = self.api.status().get("status", [])
         return {item.get("name"): item for item in status}
@@ -109,18 +154,32 @@ class MonitoringOrchestrator:
     def sync_lastacts_to_db(self):
         progress_payload = self.api.progress(include_lastacts=True, raw=True)
         lastacts = progress_payload.get("lastacts", [])
+        last_processed_log_id = self.store.get_sync_state_int("last_processed_log_id", default=0)
+        historical_acts = self._fetch_historical_activities(since_log_id=last_processed_log_id)
+
+        combined = {}
+        for act in [*historical_acts, *lastacts]:
+            if not isinstance(act, dict):
+                continue
+            log_id = self._extract_log_id(act)
+            if log_id is None:
+                continue
+            combined[log_id] = act
 
         status_map = self._build_status_map()
+        status_by_id = {item.get("id"): item for item in status_map.values() if item.get("id") is not None}
         now = datetime.now()
         synced = 0
+        max_seen_log_id = last_processed_log_id
 
-        for act in lastacts:
-            log_id = act.get("logid")
-            if not log_id:
-                continue
+        for log_id in sorted(combined):
+            act = combined[log_id]
+            max_seen_log_id = max(max_seen_log_id, log_id)
 
             client_name = act.get("name") or act.get("clientname")
             status = status_map.get(client_name, {})
+            if not status:
+                status = status_by_id.get(act.get("id")) or {}
             health, text, _ = self.analyzer.compute_health(
                 last_ts=status.get("lastbackup"),
                 file_ok=status.get("file_ok", True),
@@ -160,9 +219,14 @@ class MonitoringOrchestrator:
             )
             synced += 1
 
+        if max_seen_log_id > last_processed_log_id:
+            self.store.set_sync_state("last_processed_log_id", max_seen_log_id)
+
         return {
             "lastacts_total": len(lastacts),
+            "historical_total": len(historical_acts),
             "new_logs_synced": synced,
+            "last_processed_log_id": max_seen_log_id,
         }
 
     def _background_sync_loop(self, interval_seconds: int):

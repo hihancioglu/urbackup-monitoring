@@ -50,6 +50,12 @@ class MonitoringStore:
                     fetched_at TEXT NOT NULL,
                     FOREIGN KEY(client_name) REFERENCES clients(client_name)
                 );
+
+                CREATE TABLE IF NOT EXISTS sync_state (
+                    state_key TEXT PRIMARY KEY,
+                    state_value TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
                 """
             )
 
@@ -87,6 +93,39 @@ class MonitoringStore:
                 (log_id,),
             ).fetchone()
             return row is not None
+
+    def get_sync_state(self, key: str, default: str | None = None) -> str | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT state_value FROM sync_state WHERE state_key = ?",
+                (key,),
+            ).fetchone()
+            if not row:
+                return default
+            return row["state_value"]
+
+    def get_sync_state_int(self, key: str, default: int = 0) -> int:
+        value = self.get_sync_state(key)
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    def set_sync_state(self, key: str, value: str | int):
+        now = datetime.utcnow().isoformat(timespec="seconds")
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO sync_state (state_key, state_value, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(state_key) DO UPDATE SET
+                    state_value=excluded.state_value,
+                    updated_at=excluded.updated_at
+                """,
+                (key, str(value), now),
+            )
 
     def insert_backup_log(
         self,
