@@ -25,6 +25,7 @@ The app needs UrBackup credentials as environment variables:
 - `URB_SYNC_INTERVAL_SECONDS` (optional, default: `60`)
 - `URB_SYNC_MODE` (optional, for `python main.py`; `oneshot` or `daemon`)
 - `URB_HISTORY_MAX_PAGES` (optional, default: `200`; history backfill page limit per run)
+- `URB_HISTORY_MAX_ZERO_UNIQUE_PAGES` (optional, default: `10`; stop historical backfill when repeated pages contain no unique log IDs)
 
 ### Docker Compose
 
