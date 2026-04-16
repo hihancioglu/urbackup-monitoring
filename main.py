@@ -14,16 +14,24 @@ def _load_local_dotenv(path: str = ".env") -> None:
     if not env_file.exists():
         return
 
-    for raw_line in env_file.read_text(encoding="utf-8").splitlines():
+    raw_content = env_file.read_text(encoding="utf-8")
+    # Guard against accidentally writing literal "\n" sequences into .env
+    # (for example: echo "A=1\nB=2" >> .env without interpreting escapes).
+    normalized_content = raw_content.replace("\\r\\n", "\n").replace("\\n", "\n")
+
+    for raw_line in normalized_content.splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
+
+        if line.startswith("export "):
+            line = line[len("export "):].strip()
 
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip().strip('"').strip("'")
 
-        if key and key not in os.environ:
+        if key and (key not in os.environ or not (os.environ.get(key) or "").strip()):
             os.environ[key] = value
 
 
