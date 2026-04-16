@@ -56,7 +56,10 @@ class UrBackupAPI:
                 "ses": self.session_token,
                 "lang": self.lang,
             }
-            response = self._post_raw(action, body)
+            try:
+                response = self._post_raw(action, body)
+            except requests.RequestException:
+                continue
 
             if response.status_code != 200:
                 continue
