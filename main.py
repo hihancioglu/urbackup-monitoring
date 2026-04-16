@@ -103,9 +103,14 @@ class MonitoringOrchestrator:
         activities = []
         offset = 0
         fetched_pages = 0
+        print(
+            "[sync] historical fetch started "
+            f"(since_log_id={since_log_id}, max_pages={'all' if max_pages == 0 else max_pages})"
+        )
 
         while True:
             if max_pages > 0 and fetched_pages >= max_pages:
+                print(f"[sync] historical fetch stopped at max_pages={max_pages}")
                 break
 
             payload = self.api.logs(ll=offset)
@@ -113,9 +118,11 @@ class MonitoringOrchestrator:
             fetched_pages += 1
 
             if not isinstance(page_logs, list) or not page_logs:
+                print(f"[sync] historical fetch completed (page={fetched_pages}, no more logs)")
                 break
 
             reached_synced_boundary = False
+            page_added = 0
             for item in page_logs:
                 if not isinstance(item, dict):
                     continue
@@ -128,8 +135,16 @@ class MonitoringOrchestrator:
                     continue
 
                 activities.append(item)
+                page_added += 1
+
+            print(
+                "[sync] historical page fetched "
+                f"(page={fetched_pages}, offset={offset}, page_count={len(page_logs)}, "
+                f"new_collected={page_added}, total_collected={len(activities)})"
+            )
 
             if reached_synced_boundary:
+                print("[sync] historical fetch reached previously synced boundary")
                 break
 
             offset += len(page_logs)
@@ -234,6 +249,11 @@ class MonitoringOrchestrator:
         return not self.store.has_any_backup_logs()
 
     def sync_lastacts_to_db(self, *, force_full_history: bool = False):
+        started_at = datetime.now()
+        print(
+            "[sync] run started "
+            f"(force_full_history={force_full_history}, started_at={started_at.isoformat(timespec='seconds')})"
+        )
         progress_payload = self.api.progress(include_lastacts=True, raw=True)
         lastacts = progress_payload.get("lastacts", [])
         last_processed_log_id = self.store.get_sync_state_int("last_processed_log_id", default=0)
@@ -242,6 +262,11 @@ class MonitoringOrchestrator:
         )
         if effective_force_full_history:
             last_processed_log_id = 0
+        print(
+            "[sync] source scan "
+            f"(lastacts={len(lastacts)}, last_processed_log_id={last_processed_log_id}, "
+            f"effective_force_full_history={effective_force_full_history})"
+        )
 
         historical_acts = self._fetch_historical_activities(
             since_log_id=last_processed_log_id,
@@ -262,10 +287,12 @@ class MonitoringOrchestrator:
         now = datetime.now()
         synced = 0
         max_seen_log_id = last_processed_log_id
+        processed = 0
 
         for log_id in sorted(combined):
             act = combined[log_id]
             max_seen_log_id = max(max_seen_log_id, log_id)
+            processed += 1
 
             client_name = act.get("name") or act.get("clientname")
             client_id = self._extract_client_id(act)
@@ -310,21 +337,32 @@ class MonitoringOrchestrator:
                 has_warning=parsed.get("has_warning", False),
             )
             synced += 1
+            if synced % 25 == 0:
+                print(
+                    f"[sync] download batch complete (new_logs_synced={synced}, processed={processed}/{len(combined)})"
+                )
 
         if max_seen_log_id > last_processed_log_id:
             self.store.set_sync_state("last_processed_log_id", max_seen_log_id)
 
-        return {
+        result = {
             "lastacts_total": len(lastacts),
             "historical_total": len(historical_acts),
             "new_logs_synced": synced,
             "last_processed_log_id": max_seen_log_id,
         }
+        finished_at = datetime.now()
+        print(
+            "[sync] run finished "
+            f"(duration_seconds={(finished_at - started_at).total_seconds():.2f}, result={result})"
+        )
+        return result
 
     def _background_sync_loop(self, interval_seconds: int):
         while not self._sync_stop.is_set():
             try:
-                self.sync_lastacts_to_db()
+                result = self.sync_lastacts_to_db()
+                print(f"[background-sync] cycle completed: {result}")
             except Exception as exc:
                 print(f"[background-sync] sync failed: {exc}")
 
