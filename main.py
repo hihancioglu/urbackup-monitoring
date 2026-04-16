@@ -69,7 +69,19 @@ class MonitoringOrchestrator:
 
     @staticmethod
     def _extract_log_id(item: dict) -> int | None:
-        for key in ("logid", "id"):
+        for key in ("logid", "log_id", "logId"):
+            value = item.get(key)
+            if value is None:
+                continue
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                continue
+        return None
+
+    @staticmethod
+    def _extract_client_id(item: dict) -> int | None:
+        for key in ("clientid", "client_id", "id"):
             value = item.get(key)
             if value is None:
                 continue
@@ -201,9 +213,10 @@ class MonitoringOrchestrator:
             max_seen_log_id = max(max_seen_log_id, log_id)
 
             client_name = act.get("name") or act.get("clientname")
+            client_id = self._extract_client_id(act)
             status = status_map.get(client_name, {})
             if not status:
-                status = status_by_id.get(act.get("id")) or {}
+                status = status_by_id.get(client_id) or {}
             health, text, _ = self.analyzer.compute_health(
                 last_ts=status.get("lastbackup"),
                 file_ok=status.get("file_ok", True),
@@ -214,7 +227,7 @@ class MonitoringOrchestrator:
             self.store.upsert_client(
                 {
                     "client_name": client_name,
-                    "client_id": act.get("id") or status.get("id"),
+                    "client_id": client_id or status.get("id"),
                     "online": status.get("online", False),
                     "last_backup_ts": status.get("lastbackup"),
                     "health": health,
@@ -232,7 +245,7 @@ class MonitoringOrchestrator:
             self.store.insert_backup_log(
                 log_id=log_id,
                 client_name=client_name,
-                client_id=act.get("id") or status.get("id"),
+                client_id=client_id or status.get("id"),
                 action=act.get("action") or act.get("details") or act.get("pcdone"),
                 created_ts=act.get("time") or act.get("starttime"),
                 detail_lines=[str(line) for line in detail_lines],
