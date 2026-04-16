@@ -64,6 +64,8 @@ This flow:
 5. Stores client latest state + backup log details in SQLite
 6. Updates `last_processed_log_id`
 
+> Note: `Reset + Rebuild Logs` in the web UI clears checkpoints and performs an unlimited historical backfill (not capped by `URB_HISTORY_MAX_PAGES`).
+
 ## Database tables
 
 - `clients`: latest known client status/health
