@@ -1,11 +1,11 @@
 import os
 import threading
 import time
-from datetime import datetime
 from pathlib import Path
 
 from analyzer import Analyzer
 from storage import MonitoringStore
+from time_utils import now_local
 from urbackup_api import UrBackupAPI
 
 
@@ -197,7 +197,7 @@ class MonitoringOrchestrator:
         usage = self.api.usage().get("usage", [])
         progress = self.api.progress()
 
-        now = datetime.now()
+        now = now_local()
         status_map = self._build_status_map()
         progress_map = {p["name"]: p for p in progress}
 
@@ -287,7 +287,7 @@ class MonitoringOrchestrator:
         return not self.store.has_any_backup_logs()
 
     def sync_lastacts_to_db(self, *, force_full_history: bool = False):
-        started_at = datetime.now()
+        started_at = now_local()
         print(
             "[sync] run started "
             f"(force_full_history={force_full_history}, started_at={started_at.isoformat(timespec='seconds')})"
@@ -295,8 +295,13 @@ class MonitoringOrchestrator:
         progress_payload = self.api.progress(include_lastacts=True, raw=True)
         lastacts = progress_payload.get("lastacts", [])
         last_processed_log_id = self.store.get_sync_state_int("last_processed_log_id", default=0)
-        effective_force_full_history = force_full_history or self._should_run_initial_full_sync(
-            last_processed_log_id
+        force_full_history_from_env = (os.getenv("URB_FORCE_FULL_HISTORY", "0").strip().lower()
+            in {"1", "true", "yes", "on"}
+        )
+        effective_force_full_history = (
+            force_full_history
+            or force_full_history_from_env
+            or self._should_run_initial_full_sync(last_processed_log_id)
         )
         if effective_force_full_history:
             last_processed_log_id = 0
@@ -322,7 +327,7 @@ class MonitoringOrchestrator:
 
         status_map = self._build_status_map()
         status_by_id = {item.get("id"): item for item in status_map.values() if item.get("id") is not None}
-        now = datetime.now()
+        now = now_local()
         synced = 0
         max_seen_log_id = last_processed_log_id
         processed = 0
@@ -389,7 +394,7 @@ class MonitoringOrchestrator:
             "new_logs_synced": synced,
             "last_processed_log_id": max_seen_log_id,
         }
-        finished_at = datetime.now()
+        finished_at = now_local()
         print(
             "[sync] run finished "
             f"(duration_seconds={(finished_at - started_at).total_seconds():.2f}, result={result})"

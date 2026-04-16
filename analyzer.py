@@ -1,4 +1,4 @@
-from datetime import datetime
+from time_utils import from_unix, now_local
 
 
 class Analyzer:
@@ -7,12 +7,14 @@ class Analyzer:
         self.critical_hours = critical_hours
 
     def compute_health(self, last_ts, file_ok=True, issues=0, now=None):
-        now = now or datetime.now()
+        now = now or now_local()
 
         if not last_ts:
             return "danger", "No backup", None
 
-        last_dt = datetime.fromtimestamp(last_ts)
+        last_dt = from_unix(last_ts)
+        if last_dt is None:
+            return "danger", "No backup", None
         diff_hours = (now - last_dt).total_seconds() / 3600
 
         if diff_hours > self.critical_hours:
