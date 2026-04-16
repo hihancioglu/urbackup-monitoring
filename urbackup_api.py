@@ -151,9 +151,14 @@ class UrBackupAPI:
                 continue
             if isinstance(payload.get("logs"), list) and payload.get("logs"):
                 return payload
+            if isinstance(payload.get("logs"), str) and payload.get("logs").strip():
+                return payload
             nested_log = payload.get("log")
-            if isinstance(nested_log, dict) and isinstance(nested_log.get("data"), list):
-                if nested_log.get("data"):
+            if isinstance(nested_log, dict):
+                nested_data = nested_log.get("data")
+                if isinstance(nested_data, list) and nested_data:
+                    return payload
+                if isinstance(nested_data, str) and nested_data.strip():
                     return payload
 
         return candidates[0] if candidates else {}

@@ -298,6 +298,22 @@ class MonitoringStore:
 
         detail_messages = []
         payload_logs = detail_payload.get("logs", []) if isinstance(detail_payload, dict) else []
+        if (
+            isinstance(detail_payload, dict)
+            and (not payload_logs)
+            and isinstance(detail_payload.get("log"), dict)
+            and isinstance(detail_payload["log"].get("data"), str)
+        ):
+            payload_logs = [detail_payload["log"]["data"]]
+        elif (
+            isinstance(detail_payload, dict)
+            and (not payload_logs)
+            and isinstance(detail_payload.get("data"), str)
+        ):
+            payload_logs = [detail_payload["data"]]
+
+        if isinstance(payload_logs, str):
+            payload_logs = [payload_logs]
         if isinstance(payload_logs, list):
             for item in payload_logs:
                 if isinstance(item, dict):

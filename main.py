@@ -131,10 +131,18 @@ class MonitoringOrchestrator:
             nested_data = nested_log.get("data")
             if isinstance(nested_data, list):
                 return {**payload, "logs": nested_data}
+            if isinstance(nested_data, str):
+                text = nested_data.strip()
+                if text:
+                    return {**payload, "logs": [text]}
 
         data_logs = payload.get("data")
         if isinstance(data_logs, list):
             return {**payload, "logs": data_logs}
+        if isinstance(data_logs, str):
+            text = data_logs.strip()
+            if text:
+                return {**payload, "logs": [text]}
 
         return {**payload, "logs": []}
 
@@ -335,6 +343,9 @@ class MonitoringOrchestrator:
             return []
 
         raw_logs = detail_payload.get("logs", [])
+        if isinstance(raw_logs, str):
+            text = raw_logs.strip()
+            return [text] if text else []
         if not isinstance(raw_logs, list):
             return []
 
