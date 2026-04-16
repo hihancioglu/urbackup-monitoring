@@ -104,6 +104,40 @@ class MonitoringOrchestrator:
                 continue
         return None
 
+    @staticmethod
+    def _extract_activities(payload: dict) -> list[dict]:
+        """Support multiple UrBackup response shapes for activity lists."""
+        if not isinstance(payload, dict):
+            return []
+
+        for key in ("logs", "lastacts", "activities", "data"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return [item for item in value if isinstance(item, dict)]
+
+        return []
+
+    @staticmethod
+    def _extract_detail_payload(payload: dict) -> dict:
+        """Normalize log-detail payload into {'logs': [...]} shape."""
+        if not isinstance(payload, dict):
+            return {"logs": []}
+
+        if isinstance(payload.get("logs"), list):
+            return payload
+
+        nested_log = payload.get("log")
+        if isinstance(nested_log, dict):
+            nested_data = nested_log.get("data")
+            if isinstance(nested_data, list):
+                return {**payload, "logs": nested_data}
+
+        data_logs = payload.get("data")
+        if isinstance(data_logs, list):
+            return {**payload, "logs": data_logs}
+
+        return {**payload, "logs": []}
+
     def _fetch_historical_activities(
         self,
         since_log_id: int,
@@ -132,7 +166,7 @@ class MonitoringOrchestrator:
                 break
 
             payload = self.api.logs(ll=offset)
-            page_logs = payload.get("logs", [])
+            page_logs = self._extract_activities(payload)
             fetched_pages += 1
 
             if not isinstance(page_logs, list) or not page_logs:
@@ -306,7 +340,7 @@ class MonitoringOrchestrator:
             f"(force_full_history={force_full_history}, started_at={started_at.isoformat(timespec='seconds')})"
         )
         progress_payload = self.api.progress(include_lastacts=True, raw=True)
-        lastacts = progress_payload.get("lastacts", [])
+        lastacts = self._extract_activities(progress_payload)
         last_processed_log_id = self.store.get_sync_state_int("last_processed_log_id", default=0)
         force_full_history_from_env = (os.getenv("URB_FORCE_FULL_HISTORY", "0").strip().lower()
             in {"1", "true", "yes", "on"}
@@ -385,7 +419,7 @@ class MonitoringOrchestrator:
                 f"log_id={log_id} fetching detail payload "
                 f"(client_name={client_name!r}, client_id={client_id or status.get('id')}, action={act.get('action')!r})"
             )
-            detail_payload = self.api.logs(log_id=log_id)
+            detail_payload = self._extract_detail_payload(self.api.logs(log_id=log_id))
             detail_lines = self._normalize_detail_lines(detail_payload)
             if not detail_lines:
                 self._debug(
