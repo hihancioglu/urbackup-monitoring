@@ -10,4 +10,6 @@ services:
       URB_URL: ${URB_URL}
       URB_USER: ${URB_USER}
       URB_PASS: ${URB_PASS}
+    volumes:
+      - ./data:/data
     restart: always

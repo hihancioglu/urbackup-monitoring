@@ -20,7 +20,7 @@ The app needs UrBackup credentials as environment variables:
 - `URB_URL` (or `URBACKUP_URL`)
 - `URB_USER` (or `URBACKUP_USER`)
 - `URB_PASS` (or `URBACKUP_PASS`)
-- `URB_DB_PATH` (or `URBACKUP_DB_PATH`, optional, default: `data/urbackup_monitoring.db`)
+- `URB_DB_PATH` (or `URBACKUP_DB_PATH`, optional, default: `/data/urbackup_monitoring.db` when `/data` exists, otherwise `data/urbackup_monitoring.db`)
 - `URB_SYNC_INTERVAL_SECONDS` (optional, default: `60`)
 - `URB_SYNC_MODE` (optional, for `python main.py`; `oneshot` or `daemon`)
 

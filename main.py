@@ -35,6 +35,13 @@ def _get_env(*names: str) -> str | None:
     return None
 
 
+def _default_db_path() -> str:
+    data_mount = Path("/data")
+    if data_mount.exists() and data_mount.is_dir():
+        return str(data_mount / "urbackup_monitoring.db")
+    return "data/urbackup_monitoring.db"
+
+
 _load_local_dotenv()
 
 
@@ -43,7 +50,7 @@ class MonitoringOrchestrator:
         base_url = _get_env("URB_URL", "URBACKUP_URL")
         username = _get_env("URB_USER", "URBACKUP_USER")
         password = _get_env("URB_PASS", "URBACKUP_PASS")
-        db_path = _get_env("URB_DB_PATH", "URBACKUP_DB_PATH") or "data/urbackup_monitoring.db"
+        db_path = _get_env("URB_DB_PATH", "URBACKUP_DB_PATH") or _default_db_path()
 
         if api is None and not base_url:
             raise ValueError(
