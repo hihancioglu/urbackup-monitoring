@@ -59,12 +59,10 @@ This flow:
 
 1. Calls `progress` with `with_lastacts=1`
 2. Reads `last_processed_log_id` state from SQLite
-3. Backfills older logs from `logs` list API until synced boundary
+3. If database is empty, performs one-time full historical backfill; otherwise backfills until synced boundary
 4. Calls `logs` endpoint for detailed lines
 5. Stores client latest state + backup log details in SQLite
 6. Updates `last_processed_log_id`
-
-> Note: `Reset + Rebuild Logs` in the web UI clears checkpoints and performs an unlimited historical backfill (not capped by `URB_HISTORY_MAX_PAGES`).
 
 ## Database tables
 
