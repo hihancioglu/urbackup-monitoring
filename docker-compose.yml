@@ -6,4 +6,8 @@ services:
     container_name: urbackup-panel
     ports:
       - "8888:8888"
+    environment:
+      URB_URL: ${URB_URL}
+      URB_USER: ${URB_USER}
+      URB_PASS: ${URB_PASS}
     restart: always
