@@ -91,14 +91,26 @@ class MonitoringOrchestrator:
                 continue
         return None
 
-    def _fetch_historical_activities(self, since_log_id: int) -> list[dict]:
-        max_pages = int(os.getenv("URB_HISTORY_MAX_PAGES", "200"))
+    def _fetch_historical_activities(
+        self,
+        since_log_id: int,
+        *,
+        max_pages: int | None = None,
+    ) -> list[dict]:
+        if max_pages is None:
+            max_pages = int(os.getenv("URB_HISTORY_MAX_PAGES", "200"))
+
         activities = []
         offset = 0
+        fetched_pages = 0
 
-        for _ in range(max_pages):
+        while True:
+            if max_pages > 0 and fetched_pages >= max_pages:
+                break
+
             payload = self.api.logs(ll=offset)
             page_logs = payload.get("logs", [])
+            fetched_pages += 1
 
             if not isinstance(page_logs, list) or not page_logs:
                 break
@@ -218,13 +230,20 @@ class MonitoringOrchestrator:
 
     def rebuild_backup_logs(self):
         self.store.reset_backup_logs()
-        return self.sync_lastacts_to_db()
+        return self.sync_lastacts_to_db(force_full_history=True)
 
-    def sync_lastacts_to_db(self):
+    def sync_lastacts_to_db(self, *, force_full_history: bool = False):
         progress_payload = self.api.progress(include_lastacts=True, raw=True)
         lastacts = progress_payload.get("lastacts", [])
-        last_processed_log_id = self.store.get_sync_state_int("last_processed_log_id", default=0)
-        historical_acts = self._fetch_historical_activities(since_log_id=last_processed_log_id)
+        last_processed_log_id = (
+            0
+            if force_full_history
+            else self.store.get_sync_state_int("last_processed_log_id", default=0)
+        )
+        historical_acts = self._fetch_historical_activities(
+            since_log_id=last_processed_log_id,
+            max_pages=0 if force_full_history else None,
+        )
 
         combined = {}
         for act in [*historical_acts, *lastacts]:
