@@ -122,6 +122,9 @@ class UrBackupAPI:
             return data
         return data.get("progress", [])
 
+    def lastacts(self):
+        return self._safe_post("lastacts")
+
     def logs(self, client_id=None, log_id=None, ll: int = 0):
         payload = {"ll": ll}
         if client_id is not None:

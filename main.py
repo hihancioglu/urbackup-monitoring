@@ -343,8 +343,8 @@ class MonitoringOrchestrator:
             "[sync] run started "
             f"(force_full_history={force_full_history}, started_at={started_at.isoformat(timespec='seconds')})"
         )
-        progress_payload = self.api.progress(include_lastacts=True, raw=True)
-        lastacts = self._extract_activities(progress_payload)
+        lastacts_payload = self.api.lastacts()
+        lastacts = self._extract_activities(lastacts_payload)
         last_processed_log_id = self.store.get_sync_state_int("last_processed_log_id", default=0)
         force_full_history_from_env = (os.getenv("URB_FORCE_FULL_HISTORY", "0").strip().lower()
             in {"1", "true", "yes", "on"}
@@ -363,7 +363,7 @@ class MonitoringOrchestrator:
         )
         self._debug(
             "source payload details "
-            f"(progress_keys={list(progress_payload.keys()) if isinstance(progress_payload, dict) else type(progress_payload).__name__})"
+            f"(lastacts_keys={list(lastacts_payload.keys()) if isinstance(lastacts_payload, dict) else type(lastacts_payload).__name__})"
         )
 
         historical_acts = self._fetch_historical_activities(
