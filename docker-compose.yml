@@ -1,0 +1,9 @@
+version: "3.8"
+
+services:
+  urbackup-panel:
+    build: .
+    container_name: urbackup-panel
+    ports:
+      - "8888:8888"
+    restart: always
