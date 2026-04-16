@@ -72,8 +72,13 @@ class MonitoringOrchestrator:
         )
         self.analyzer = analyzer or Analyzer()
         self.store = store or MonitoringStore(db_path=db_path)
+        self.debug_enabled = (os.getenv("URB_DEBUG", "0").strip().lower() in {"1", "true", "yes", "on"})
         self._sync_thread = None
         self._sync_stop = threading.Event()
+
+    def _debug(self, message: str):
+        if self.debug_enabled:
+            print(f"[sync][debug] {message}")
 
     @staticmethod
     def _extract_log_id(item: dict) -> int | None:
@@ -318,6 +323,10 @@ class MonitoringOrchestrator:
             f"(lastacts={len(lastacts)}, last_processed_log_id={last_processed_log_id}, "
             f"effective_force_full_history={effective_force_full_history})"
         )
+        self._debug(
+            "source payload details "
+            f"(progress_keys={list(progress_payload.keys()) if isinstance(progress_payload, dict) else type(progress_payload).__name__})"
+        )
 
         historical_acts = self._fetch_historical_activities(
             since_log_id=last_processed_log_id,
@@ -369,10 +378,20 @@ class MonitoringOrchestrator:
             )
 
             if self.store.has_backup_log(log_id):
+                self._debug(f"log_id={log_id} skipped (already exists in database)")
                 continue
 
+            self._debug(
+                f"log_id={log_id} fetching detail payload "
+                f"(client_name={client_name!r}, client_id={client_id or status.get('id')}, action={act.get('action')!r})"
+            )
             detail_payload = self.api.logs(log_id=log_id)
             detail_lines = self._normalize_detail_lines(detail_payload)
+            if not detail_lines:
+                self._debug(
+                    f"log_id={log_id} detail is empty "
+                    f"(payload_keys={list(detail_payload.keys()) if isinstance(detail_payload, dict) else type(detail_payload).__name__})"
+                )
             parsed = self.analyzer.parse_log("\n".join(map(str, detail_lines)))
 
             self.store.insert_backup_log(
@@ -388,6 +407,11 @@ class MonitoringOrchestrator:
                 has_warning=parsed.get("has_warning", False),
             )
             synced += 1
+            self._debug(
+                f"log_id={log_id} inserted "
+                f"(detail_line_count={len(detail_lines)}, has_error={parsed.get('has_error', False)}, "
+                f"has_warning={parsed.get('has_warning', False)})"
+            )
             if synced % 25 == 0:
                 print(
                     f"[sync] download batch complete (new_logs_synced={synced}, processed={processed}/{len(combined)})"

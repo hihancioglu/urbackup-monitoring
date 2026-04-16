@@ -28,6 +28,7 @@ The app needs UrBackup credentials as environment variables:
 - `URB_FORCE_FULL_HISTORY` (optional, default: `0`; when `1/true`, each sync run backfills all history instead of stopping at the last processed log id)
 - `URB_HISTORY_MAX_PAGES` (optional, default: `200`; history backfill page limit per run)
 - `URB_HISTORY_MAX_ZERO_UNIQUE_PAGES` (optional, default: `10`; stop historical backfill when repeated pages contain no unique log IDs)
+- `URB_DEBUG` (optional, default: `0`; when `1/true`, enables verbose API + sync debug logs for troubleshooting log-download issues)
 
 > Note: `.env` entries must be on separate lines. If your file accidentally contains literal `\n` text (single-line paste), it is now normalized automatically.
 

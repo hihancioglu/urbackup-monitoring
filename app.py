@@ -71,6 +71,7 @@ def debug():
     progress = orchestrator.api.progress()
 
     return {
+        "debug_enabled": orchestrator.debug_enabled,
         "usage_keys": list(usage.keys()) if isinstance(usage, dict) else str(type(usage)),
         "status_keys": list(status.keys()) if isinstance(status, dict) else str(type(status)),
         "progress_count": len(progress) if isinstance(progress, list) else -1,

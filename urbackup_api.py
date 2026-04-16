@@ -1,3 +1,5 @@
+import os
+
 import requests
 
 
@@ -11,9 +13,15 @@ class UrBackupAPI:
         self.lang = lang
         self.session = requests.Session()
         self.session_token = None
+        self.debug_enabled = (os.getenv("URB_DEBUG", "0").strip().lower() in {"1", "true", "yes", "on"})
         self.login()
 
+    def _debug(self, message: str):
+        if self.debug_enabled:
+            print(f"[urbackup-api][debug] {message}")
+
     def login(self):
+        self._debug("login request started")
         response = self.session.post(
             f"{self.base_url}/x?a=login",
             data={
@@ -31,6 +39,7 @@ class UrBackupAPI:
             raise RuntimeError(f"Login failed: {data}")
 
         self.session_token = token
+        self._debug("login request succeeded (session token received)")
         return token
 
     def _post_raw(self, action: str, data: dict):
@@ -49,6 +58,7 @@ class UrBackupAPI:
 
         for attempt in (1, 2):
             if attempt == 2:
+                self._debug(f"action={action} retrying with fresh login")
                 self.login()
 
             body = {
@@ -58,28 +68,46 @@ class UrBackupAPI:
             }
             try:
                 response = self._post_raw(action, body)
-            except requests.RequestException:
+            except requests.RequestException as exc:
+                self._debug(f"action={action} attempt={attempt} request failed: {exc}")
                 continue
 
             if response.status_code != 200:
+                self._debug(
+                    f"action={action} attempt={attempt} unexpected_status={response.status_code}"
+                )
                 continue
 
             raw = response.text.strip()
             if not raw or raw.startswith("<"):
+                self._debug(
+                    f"action={action} attempt={attempt} invalid_raw_response "
+                    f"(empty_or_html={not raw or raw.startswith('<')})"
+                )
                 continue
 
             try:
                 data = response.json()
             except ValueError:
+                self._debug(
+                    f"action={action} attempt={attempt} json_decode_failed "
+                    f"raw_preview={raw[:180]!r}"
+                )
                 continue
 
             # UrBackup may return {"error": 1} when the session is expired.
             # In that case refresh session and retry once.
             if isinstance(data, dict) and data.get("error") == 1:
+                self._debug(f"action={action} attempt={attempt} session_expired_error=1")
                 continue
 
+            self._debug(
+                f"action={action} attempt={attempt} success "
+                f"payload_keys={list(data.keys()) if isinstance(data, dict) else type(data).__name__}"
+            )
             return data
 
+        self._debug(f"action={action} failed after retries, returning empty payload")
         return {}
 
     def usage(self):
