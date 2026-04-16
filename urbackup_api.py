@@ -132,3 +132,14 @@ class UrBackupAPI:
         if log_id is not None:
             payload["logid"] = log_id
         return self._safe_post("logs", payload)
+
+    def log_detail(self, *, log_id: int, client_id: int | None = None):
+        """
+        Fetch a log detail payload.
+
+        Some UrBackup deployments require selecting the client first
+        (via logs/filter) before requesting logid details.
+        """
+        if client_id is not None:
+            self.logs(client_id=client_id)
+        return self.logs(log_id=log_id)
