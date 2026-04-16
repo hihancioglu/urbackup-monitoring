@@ -423,7 +423,12 @@ class MonitoringOrchestrator:
                 f"log_id={log_id} fetching detail payload "
                 f"(client_name={client_name!r}, client_id={client_id or status.get('id')}, action={act.get('action')!r})"
             )
-            detail_payload = self._extract_detail_payload(self.api.logs(log_id=log_id))
+            detail_payload = self._extract_detail_payload(
+                self.api.log_detail(
+                    log_id=log_id,
+                    client_id=client_id or status.get("id"),
+                )
+            )
             detail_lines = self._normalize_detail_lines(detail_payload)
             if not detail_lines:
                 self._debug(

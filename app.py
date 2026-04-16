@@ -64,6 +64,27 @@ def log_detail(log_id: int):
     return render_template("log_detail.html", log=log_item)
 
 
+@app.route("/api/logs/<int:log_id>")
+def log_detail_api(log_id: int):
+    log_item = orchestrator.collect_backup_log_detail(log_id)
+    if not log_item:
+        abort(404)
+    return {
+        "log_id": log_item["log_id"],
+        "client_name": log_item["client_name"],
+        "client_id": log_item["client_id"],
+        "action": log_item["action"],
+        "created_at": (
+            log_item["created_at"].strftime("%d.%m.%Y %H:%M:%S")
+            if log_item["created_at"]
+            else "-"
+        ),
+        "has_error": bool(log_item["has_error"]),
+        "has_warning": bool(log_item["has_warning"]),
+        "detail_messages": log_item["detail_messages"],
+    }
+
+
 @app.route("/debug")
 def debug():
     usage = orchestrator.api.usage()
