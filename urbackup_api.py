@@ -85,8 +85,10 @@ class UrBackupAPI:
     def status(self):
         return self._safe_post("status")
 
-    def progress(self):
-        data = self._safe_post("progress", {"with_lastacts": 0})
+    def progress(self, *, include_lastacts: bool = False, raw: bool = False):
+        data = self._safe_post("progress", {"with_lastacts": 1 if include_lastacts else 0})
+        if raw:
+            return data
         return data.get("progress", [])
 
     def logs(self, client_id=None, log_id=None):
