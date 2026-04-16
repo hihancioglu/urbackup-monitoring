@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Log Detail #{{ log.log_id }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark text-light">
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="mb-0">🧾 Log Detail #{{ log.log_id }}</h3>
+        <a href="/logs{% if log.client_id %}?client_id={{ log.client_id }}{% endif %}" class="btn btn-outline-secondary">Back to Logs</a>
+    </div>
+
+    <div class="card bg-secondary-subtle text-dark mb-3">
+        <div class="card-body">
+            <div><strong>Client:</strong> {{ log.client_name or '-' }}{% if log.client_id %} (ID: {{ log.client_id }}){% endif %}</div>
+            <div><strong>Action:</strong> {{ log.action or '-' }}</div>
+            <div><strong>Time:</strong>
+                {% if log.created_at %}
+                    {{ log.created_at.strftime("%d.%m.%Y %H:%M:%S") }}
+                {% else %}
+                    -
+                {% endif %}
+            </div>
+            <div><strong>Fetched at:</strong> {{ log.fetched_at }}</div>
+            <div>
+                <strong>Level:</strong>
+                {% if log.has_error %}
+                    <span class="badge bg-danger">ERROR</span>
+                {% elif log.has_warning %}
+                    <span class="badge bg-warning text-dark">WARN</span>
+                {% else %}
+                    <span class="badge bg-success">OK</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <h5>Session Log Text</h5>
+    <pre class="bg-black text-light p-3 border rounded" style="white-space: pre-wrap;">{{ log.detail_text }}</pre>
+
+    <div class="row mt-3">
+        <div class="col-md-6 mb-3">
+            <h5>Last Activity Payload</h5>
+            <pre class="bg-black text-light p-3 border rounded" style="max-height: 420px; overflow:auto;">{{ log.lastact_payload | tojson(indent=2) }}</pre>
+        </div>
+        <div class="col-md-6 mb-3">
+            <h5>Session Detail Payload</h5>
+            <pre class="bg-black text-light p-3 border rounded" style="max-height: 420px; overflow:auto;">{{ log.detail_payload | tojson(indent=2) }}</pre>
+        </div>
+    </div>
+</div>
+</body>
+</html>

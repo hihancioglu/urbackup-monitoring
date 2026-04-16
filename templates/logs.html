@@ -18,7 +18,7 @@
                 <option value="">All Clients</option>
                 {% for c in clients %}
                 <option value="{{ c.client_id }}" {% if selected_client_id == (c.client_id|string) %}selected{% endif %}>
-                    {{ c.client_name }}
+                    {{ c.client_name }} ({{ c.log_count }})
                 </option>
                 {% endfor %}
             </select>
@@ -35,6 +35,13 @@
     <div class="mb-2 text-secondary small">
         Showing {{ logs|length }} of {{ total }} records ({{ per_page }} per page)
     </div>
+    {% if client_overview %}
+    <div class="alert alert-secondary py-2">
+        <strong>{{ client_overview.client_name }}</strong> — total: {{ client_overview.total_logs }},
+        error: {{ client_overview.error_logs or 0 }},
+        warning: {{ client_overview.warning_logs or 0 }}
+    </div>
+    {% endif %}
 
     <table class="table table-dark table-striped">
         <thead>
@@ -44,6 +51,7 @@
                 <th>Action</th>
                 <th>Detail</th>
                 <th>Level</th>
+                <th>Session</th>
             </tr>
         </thead>
         <tbody>
@@ -56,7 +64,13 @@
                         -
                     {% endif %}
                 </td>
-                <td>{{ log.client_name or "-" }}</td>
+                <td>
+                    {% if log.client_id %}
+                    <a class="text-info text-decoration-none" href="/logs?client_id={{ log.client_id }}">{{ log.client_name or "-" }}</a>
+                    {% else %}
+                    {{ log.client_name or "-" }}
+                    {% endif %}
+                </td>
                 <td>{{ log.action or "-" }}</td>
                 <td><code class="text-light">{{ log.detail_preview }}</code></td>
                 <td>
@@ -68,10 +82,13 @@
                         <span class="badge bg-success">OK</span>
                     {% endif %}
                 </td>
+                <td>
+                    <a class="btn btn-sm btn-outline-info" href="/logs/{{ log.log_id }}">Detail</a>
+                </td>
             </tr>
         {% else %}
             <tr>
-                <td colspan="5" class="text-center text-secondary">No logs found.</td>
+                <td colspan="6" class="text-center text-secondary">No logs found.</td>
             </tr>
         {% endfor %}
         </tbody>
