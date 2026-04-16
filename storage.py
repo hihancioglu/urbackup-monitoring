@@ -2,7 +2,7 @@ import json
 import sqlite3
 import threading
 from contextlib import contextmanager
-from datetime import datetime
+from time_utils import from_unix, iso_now_local
 from pathlib import Path
 from typing import Iterable
 
@@ -96,7 +96,7 @@ class MonitoringStore:
         )
 
     def upsert_client(self, client_payload: dict):
-        now = datetime.utcnow().isoformat(timespec="seconds")
+        now = iso_now_local()
         with self._connect() as conn:
             conn.execute(
                 """
@@ -155,7 +155,7 @@ class MonitoringStore:
             return default
 
     def set_sync_state(self, key: str, value: str | int):
-        now = datetime.utcnow().isoformat(timespec="seconds")
+        now = iso_now_local()
         with self._connect() as conn:
             conn.execute(
                 """
@@ -182,7 +182,7 @@ class MonitoringStore:
         has_error: bool,
         has_warning: bool,
     ):
-        fetched_at = datetime.utcnow().isoformat(timespec="seconds")
+        fetched_at = iso_now_local()
         detail_text = "\n".join(detail_lines)
 
         with self._connect() as conn:
@@ -282,13 +282,8 @@ class MonitoringStore:
         if not row:
             return None
 
-        created_at = None
         created_ts = row["created_ts"]
-        if created_ts:
-            try:
-                created_at = datetime.fromtimestamp(int(created_ts))
-            except (TypeError, ValueError, OSError):
-                created_at = None
+        created_at = from_unix(created_ts)
 
         raw_lastact_json = row["raw_lastact_json"] or "{}"
         raw_detail_json = row["raw_detail_json"] or "{}"
@@ -398,10 +393,7 @@ class MonitoringStore:
             created_ts = row["created_ts"]
             created_at = None
             if created_ts:
-                try:
-                    created_at = datetime.fromtimestamp(int(created_ts))
-                except (TypeError, ValueError, OSError):
-                    created_at = None
+                created_at = from_unix(created_ts)
             detail_text = row["detail_text"] or ""
             items.append(
                 {
