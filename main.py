@@ -151,6 +151,24 @@ class MonitoringOrchestrator:
 
         return clients
 
+    def collect_log_clients(self):
+        return self.store.list_log_clients()
+
+    def collect_backup_logs(self, *, client_id=None, query=None, page: int = 1, per_page: int = 50):
+        parsed_client_id = None
+        if client_id not in (None, "", "all"):
+            try:
+                parsed_client_id = int(client_id)
+            except (TypeError, ValueError):
+                parsed_client_id = None
+
+        return self.store.get_backup_logs_page(
+            client_id=parsed_client_id,
+            query=query,
+            page=page,
+            per_page=per_page,
+        )
+
     def sync_lastacts_to_db(self):
         progress_payload = self.api.progress(include_lastacts=True, raw=True)
         lastacts = progress_payload.get("lastacts", [])

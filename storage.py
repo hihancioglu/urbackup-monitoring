@@ -175,3 +175,110 @@ class MonitoringStore:
                     fetched_at,
                 ),
             )
+
+    def list_log_clients(self) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    c.client_id AS client_id,
+                    c.client_name AS client_name
+                FROM clients c
+                WHERE c.client_name IS NOT NULL AND c.client_name != ''
+                UNION
+                SELECT
+                    b.client_id AS client_id,
+                    b.client_name AS client_name
+                FROM backup_logs b
+                WHERE b.client_name IS NOT NULL AND b.client_name != ''
+                ORDER BY client_name COLLATE NOCASE
+                """
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_backup_logs_page(
+        self,
+        *,
+        client_id: int | None = None,
+        query: str | None = None,
+        page: int = 1,
+        per_page: int = 50,
+    ) -> dict:
+        safe_page = max(1, int(page))
+        safe_per_page = max(1, int(per_page))
+        offset = (safe_page - 1) * safe_per_page
+
+        where_parts = []
+        params: list = []
+
+        if client_id is not None:
+            where_parts.append("client_id = ?")
+            params.append(client_id)
+
+        search = (query or "").strip()
+        if search:
+            where_parts.append("(client_name LIKE ? OR action LIKE ? OR detail_text LIKE ?)")
+            like = f"%{search}%"
+            params.extend([like, like, like])
+
+        where_sql = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+
+        with self._connect() as conn:
+            count_row = conn.execute(
+                f"SELECT COUNT(*) AS total FROM backup_logs {where_sql}",
+                params,
+            ).fetchone()
+            total = int(count_row["total"]) if count_row else 0
+
+            rows = conn.execute(
+                f"""
+                SELECT
+                    log_id,
+                    client_name,
+                    client_id,
+                    action,
+                    created_ts,
+                    detail_text,
+                    has_error,
+                    has_warning
+                FROM backup_logs
+                {where_sql}
+                ORDER BY created_ts DESC, log_id DESC
+                LIMIT ? OFFSET ?
+                """,
+                [*params, safe_per_page, offset],
+            ).fetchall()
+
+        items = []
+        for row in rows:
+            created_ts = row["created_ts"]
+            created_at = None
+            if created_ts:
+                try:
+                    created_at = datetime.fromtimestamp(int(created_ts))
+                except (TypeError, ValueError, OSError):
+                    created_at = None
+            detail_text = row["detail_text"] or ""
+            items.append(
+                {
+                    "log_id": row["log_id"],
+                    "client_name": row["client_name"],
+                    "client_id": row["client_id"],
+                    "action": row["action"],
+                    "created_ts": created_ts,
+                    "created_at": created_at,
+                    "detail_text": detail_text,
+                    "detail_preview": detail_text[:180],
+                    "has_error": bool(row["has_error"]),
+                    "has_warning": bool(row["has_warning"]),
+                }
+            )
+
+        total_pages = (total + safe_per_page - 1) // safe_per_page if total else 1
+        return {
+            "items": items,
+            "total": total,
+            "page": safe_page,
+            "per_page": safe_per_page,
+            "total_pages": total_pages,
+        }
