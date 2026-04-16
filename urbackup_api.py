@@ -66,9 +66,16 @@ class UrBackupAPI:
                 continue
 
             try:
-                return response.json()
+                data = response.json()
             except ValueError:
                 continue
+
+            # UrBackup may return {"error": 1} when the session is expired.
+            # In that case refresh session and retry once.
+            if isinstance(data, dict) and data.get("error") == 1:
+                continue
+
+            return data
 
         return {}
 
