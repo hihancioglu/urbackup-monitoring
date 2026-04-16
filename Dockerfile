@@ -4,6 +4,6 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install flask requests
+RUN pip install flask requests python-dotenv
 
 CMD ["python", "app.py"]
