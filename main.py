@@ -301,7 +301,33 @@ class MonitoringOrchestrator:
         )
 
     def collect_backup_log_detail(self, log_id: int):
-        return self.store.get_backup_log_detail(log_id)
+        log_item = self.store.get_backup_log_detail(log_id)
+        if not log_item:
+            return None
+
+        if log_item.get("detail_messages"):
+            return log_item
+
+        self._debug(f"log_id={log_id} detail cache is empty, trying live refetch")
+        detail_payload = self._extract_detail_payload(
+            self.api.log_detail(
+                log_id=log_id,
+                client_id=log_item.get("client_id"),
+            )
+        )
+        detail_lines = self._normalize_detail_lines(detail_payload)
+        if detail_lines:
+            parsed = self.analyzer.parse_log("\n".join(map(str, detail_lines)))
+            self.store.update_backup_log_detail(
+                log_id=log_id,
+                detail_lines=detail_lines,
+                detail_payload=detail_payload,
+                has_error=parsed.get("has_error", False),
+                has_warning=parsed.get("has_warning", False),
+            )
+            return self.store.get_backup_log_detail(log_id)
+
+        return log_item
 
     @staticmethod
     def _normalize_detail_lines(detail_payload: dict) -> list[str]:

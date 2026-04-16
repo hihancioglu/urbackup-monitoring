@@ -335,6 +335,38 @@ class MonitoringStore:
             "fetched_at": row["fetched_at"],
         }
 
+    def update_backup_log_detail(
+        self,
+        *,
+        log_id: int,
+        detail_lines: Iterable[str],
+        detail_payload: dict,
+        has_error: bool,
+        has_warning: bool,
+    ) -> None:
+        fetched_at = iso_now_local()
+        detail_text = "\n".join(detail_lines)
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE backup_logs
+                SET detail_text = ?,
+                    raw_detail_json = ?,
+                    has_error = ?,
+                    has_warning = ?,
+                    fetched_at = ?
+                WHERE log_id = ?
+                """,
+                (
+                    detail_text,
+                    json.dumps(detail_payload, ensure_ascii=False),
+                    1 if has_error else 0,
+                    1 if has_warning else 0,
+                    fetched_at,
+                    log_id,
+                ),
+            )
+
     def get_backup_logs_page(
         self,
         *,
