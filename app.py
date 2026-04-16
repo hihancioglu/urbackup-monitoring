@@ -1,9 +1,13 @@
+import os
+
 from flask import Flask, render_template
 
 from main import MonitoringOrchestrator
 
 app = Flask(__name__)
 orchestrator = MonitoringOrchestrator()
+sync_interval_seconds = int(os.getenv("URB_SYNC_INTERVAL_SECONDS", "60"))
+orchestrator.start_background_sync(interval_seconds=sync_interval_seconds)
 
 
 @app.route("/")

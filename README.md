@@ -7,6 +7,7 @@ Advanced monitoring and analytics layer for UrBackup.
 - Backup health monitoring
 - Live job tracking
 - Last activity (`with_lastacts=1`) collection
+- Background lastacts collector (works even when dashboard page is closed)
 - Backup log detail collection by `logid`
 - SQLite persistence for clients and backup logs
 - Log analysis (error/warning detection)
@@ -20,6 +21,8 @@ The app needs UrBackup credentials as environment variables:
 - `URB_USER` (or `URBACKUP_USER`)
 - `URB_PASS` (or `URBACKUP_PASS`)
 - `URB_DB_PATH` (or `URBACKUP_DB_PATH`, optional, default: `data/urbackup_monitoring.db`)
+- `URB_SYNC_INTERVAL_SECONDS` (optional, default: `60`)
+- `URB_SYNC_MODE` (optional, for `python main.py`; `oneshot` or `daemon`)
 
 ### Docker Compose
 
@@ -42,6 +45,12 @@ Run one-shot synchronization:
 
 ```bash
 python main.py
+```
+
+Run daemon synchronization loop:
+
+```bash
+URB_SYNC_MODE=daemon URB_SYNC_INTERVAL_SECONDS=60 python main.py
 ```
 
 This flow:

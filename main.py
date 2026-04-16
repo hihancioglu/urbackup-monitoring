@@ -1,4 +1,6 @@
 import os
+import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -55,6 +57,8 @@ class MonitoringOrchestrator:
         )
         self.analyzer = analyzer or Analyzer()
         self.store = store or MonitoringStore(db_path=db_path)
+        self._sync_thread = None
+        self._sync_stop = threading.Event()
 
     def _build_status_map(self):
         status = self.api.status().get("status", [])
@@ -154,8 +158,47 @@ class MonitoringOrchestrator:
             "new_logs_synced": synced,
         }
 
+    def _background_sync_loop(self, interval_seconds: int):
+        while not self._sync_stop.is_set():
+            try:
+                self.sync_lastacts_to_db()
+            except Exception as exc:
+                print(f"[background-sync] sync failed: {exc}")
+
+            self._sync_stop.wait(interval_seconds)
+
+    def start_background_sync(self, interval_seconds: int = 60):
+        if self._sync_thread and self._sync_thread.is_alive():
+            return
+
+        self._sync_stop.clear()
+        self._sync_thread = threading.Thread(
+            target=self._background_sync_loop,
+            args=(interval_seconds,),
+            name="urbackup-background-sync",
+            daemon=True,
+        )
+        self._sync_thread.start()
+
+    def stop_background_sync(self):
+        self._sync_stop.set()
+        if self._sync_thread and self._sync_thread.is_alive():
+            self._sync_thread.join(timeout=3)
+
 
 if __name__ == "__main__":
     orchestrator = MonitoringOrchestrator()
-    result = orchestrator.sync_lastacts_to_db()
-    print(result)
+    mode = (os.getenv("URB_SYNC_MODE") or "oneshot").strip().lower()
+
+    if mode == "daemon":
+        interval = int(os.getenv("URB_SYNC_INTERVAL_SECONDS", "60"))
+        print(f"Starting background sync loop (interval={interval}s)")
+        orchestrator.start_background_sync(interval_seconds=interval)
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            orchestrator.stop_background_sync()
+    else:
+        result = orchestrator.sync_lastacts_to_db()
+        print(result)
