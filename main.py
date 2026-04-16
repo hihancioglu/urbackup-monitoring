@@ -228,21 +228,24 @@ class MonitoringOrchestrator:
 
         return normalized
 
-    def rebuild_backup_logs(self):
-        self.store.reset_backup_logs()
-        return self.sync_lastacts_to_db(force_full_history=True)
+    def _should_run_initial_full_sync(self, last_processed_log_id: int) -> bool:
+        if last_processed_log_id > 0:
+            return False
+        return not self.store.has_any_backup_logs()
 
     def sync_lastacts_to_db(self, *, force_full_history: bool = False):
         progress_payload = self.api.progress(include_lastacts=True, raw=True)
         lastacts = progress_payload.get("lastacts", [])
-        last_processed_log_id = (
-            0
-            if force_full_history
-            else self.store.get_sync_state_int("last_processed_log_id", default=0)
+        last_processed_log_id = self.store.get_sync_state_int("last_processed_log_id", default=0)
+        effective_force_full_history = force_full_history or self._should_run_initial_full_sync(
+            last_processed_log_id
         )
+        if effective_force_full_history:
+            last_processed_log_id = 0
+
         historical_acts = self._fetch_historical_activities(
             since_log_id=last_processed_log_id,
-            max_pages=0 if force_full_history else None,
+            max_pages=0 if effective_force_full_history else None,
         )
 
         combined = {}

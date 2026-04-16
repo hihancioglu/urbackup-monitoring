@@ -94,6 +94,11 @@ class MonitoringStore:
             ).fetchone()
             return row is not None
 
+    def has_any_backup_logs(self) -> bool:
+        with self._connect() as conn:
+            row = conn.execute("SELECT 1 FROM backup_logs LIMIT 1").fetchone()
+            return row is not None
+
     def get_sync_state(self, key: str, default: str | None = None) -> str | None:
         with self._connect() as conn:
             row = conn.execute(
@@ -175,12 +180,6 @@ class MonitoringStore:
                     fetched_at,
                 ),
             )
-
-    def reset_backup_logs(self):
-        with self._connect() as conn:
-            conn.execute("DELETE FROM backup_logs")
-            conn.execute("DELETE FROM clients")
-            conn.execute("DELETE FROM sync_state WHERE state_key = ?", ("last_processed_log_id",))
 
     def list_log_clients(self) -> list[dict]:
         with self._connect() as conn:
