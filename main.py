@@ -82,7 +82,7 @@ class MonitoringOrchestrator:
 
     @staticmethod
     def _extract_log_id(item: dict) -> int | None:
-        for key in ("logid", "log_id", "logId"):
+        for key in ("logid", "log_id", "logId", "id", "idx"):
             value = item.get(key)
             if value is None:
                 continue
@@ -182,6 +182,10 @@ class MonitoringOrchestrator:
                     continue
                 log_id = self._extract_log_id(item)
                 if log_id is None:
+                    self._debug(
+                        "historical item skipped (log id not found) "
+                        f"available_keys={sorted(item.keys())[:12]}"
+                    )
                     continue
 
                 page_log_ids.append(log_id)
