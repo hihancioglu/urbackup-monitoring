@@ -176,6 +176,12 @@ class MonitoringStore:
                 ),
             )
 
+    def reset_backup_logs(self):
+        with self._connect() as conn:
+            conn.execute("DELETE FROM backup_logs")
+            conn.execute("DELETE FROM clients")
+            conn.execute("DELETE FROM sync_state WHERE state_key = ?", ("last_processed_log_id",))
+
     def list_log_clients(self) -> list[dict]:
         with self._connect() as conn:
             rows = conn.execute(
@@ -260,6 +266,29 @@ class MonitoringStore:
         except (TypeError, json.JSONDecodeError):
             detail_payload = {}
 
+        detail_messages = []
+        payload_logs = detail_payload.get("logs", []) if isinstance(detail_payload, dict) else []
+        if isinstance(payload_logs, list):
+            for item in payload_logs:
+                if isinstance(item, dict):
+                    text = (
+                        item.get("msg")
+                        or item.get("message")
+                        or item.get("text")
+                        or item.get("details")
+                    )
+                    if not text:
+                        continue
+                    at = item.get("time")
+                    detail_messages.append(f"[{at}] {text}" if at else str(text))
+                elif item is not None:
+                    text = str(item).strip()
+                    if text:
+                        detail_messages.append(text)
+
+        if not detail_messages:
+            detail_messages = [line for line in (row["detail_text"] or "").splitlines() if line.strip()]
+
         return {
             "log_id": row["log_id"],
             "client_name": row["client_name"],
@@ -270,6 +299,7 @@ class MonitoringStore:
             "detail_text": row["detail_text"] or "",
             "lastact_payload": lastact_payload,
             "detail_payload": detail_payload,
+            "detail_messages": detail_messages,
             "has_error": bool(row["has_error"]),
             "has_warning": bool(row["has_warning"]),
             "fetched_at": row["fetched_at"],

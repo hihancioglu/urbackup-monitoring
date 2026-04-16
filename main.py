@@ -187,6 +187,39 @@ class MonitoringOrchestrator:
     def collect_backup_log_detail(self, log_id: int):
         return self.store.get_backup_log_detail(log_id)
 
+    @staticmethod
+    def _normalize_detail_lines(detail_payload: dict) -> list[str]:
+        if not isinstance(detail_payload, dict):
+            return []
+
+        raw_logs = detail_payload.get("logs", [])
+        if not isinstance(raw_logs, list):
+            return []
+
+        normalized = []
+        for entry in raw_logs:
+            if isinstance(entry, dict):
+                text = (
+                    entry.get("msg")
+                    or entry.get("message")
+                    or entry.get("text")
+                    or entry.get("details")
+                )
+                if not text:
+                    continue
+                at = entry.get("time")
+                normalized.append(f"[{at}] {text}" if at else str(text))
+            elif entry is not None:
+                text = str(entry).strip()
+                if text:
+                    normalized.append(text)
+
+        return normalized
+
+    def rebuild_backup_logs(self):
+        self.store.reset_backup_logs()
+        return self.sync_lastacts_to_db()
+
     def sync_lastacts_to_db(self):
         progress_payload = self.api.progress(include_lastacts=True, raw=True)
         lastacts = progress_payload.get("lastacts", [])
@@ -239,7 +272,7 @@ class MonitoringOrchestrator:
                 continue
 
             detail_payload = self.api.logs(log_id=log_id)
-            detail_lines = detail_payload.get("logs", [])
+            detail_lines = self._normalize_detail_lines(detail_payload)
             parsed = self.analyzer.parse_log("\n".join(map(str, detail_lines)))
 
             self.store.insert_backup_log(
@@ -248,7 +281,7 @@ class MonitoringOrchestrator:
                 client_id=client_id or status.get("id"),
                 action=act.get("action") or act.get("details") or act.get("pcdone"),
                 created_ts=act.get("time") or act.get("starttime"),
-                detail_lines=[str(line) for line in detail_lines],
+                detail_lines=detail_lines,
                 lastact_payload=act,
                 detail_payload=detail_payload,
                 has_error=parsed.get("has_error", False),

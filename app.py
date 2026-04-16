@@ -21,6 +21,8 @@ def logs():
     selected_client_id = request.args.get("client_id", "").strip()
     query = request.args.get("q", "").strip()
     page = request.args.get("page", "1")
+    rebuild_status = request.args.get("rebuild", "").strip()
+    rebuilt_synced = request.args.get("synced", "").strip()
 
     try:
         page_num = max(1, int(page))
@@ -53,6 +55,19 @@ def logs():
         selected_client_id=selected_client_id,
         query=query,
         client_overview=client_overview,
+        rebuild_status=rebuild_status,
+        rebuilt_synced=rebuilt_synced,
+    )
+
+
+@app.post("/logs/rebuild")
+def rebuild_logs():
+    result = orchestrator.rebuild_backup_logs()
+    synced = result.get("new_logs_synced", 0)
+    return (
+        "",
+        303,
+        {"Location": f"/logs?rebuild=ok&synced={synced}"},
     )
 
 
