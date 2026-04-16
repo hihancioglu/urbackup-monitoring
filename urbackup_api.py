@@ -140,6 +140,20 @@ class UrBackupAPI:
         Some UrBackup deployments require selecting the client first
         (via logs/filter) before requesting logid details.
         """
+        candidates = []
         if client_id is not None:
             self.logs(client_id=client_id)
-        return self.logs(log_id=log_id)
+            candidates.append(self.logs(client_id=client_id, log_id=log_id))
+        candidates.append(self.logs(log_id=log_id))
+
+        for payload in candidates:
+            if not isinstance(payload, dict):
+                continue
+            if isinstance(payload.get("logs"), list) and payload.get("logs"):
+                return payload
+            nested_log = payload.get("log")
+            if isinstance(nested_log, dict) and isinstance(nested_log.get("data"), list):
+                if nested_log.get("data"):
+                    return payload
+
+        return candidates[0] if candidates else {}
