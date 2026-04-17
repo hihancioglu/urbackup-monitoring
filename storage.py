@@ -1,4 +1,5 @@
 import json
+import re
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -65,21 +66,35 @@ class MonitoringStore:
         log_ts = None
         message = line
 
-        parts = line.split("-", 2)
-        if len(parts) == 3:
-            maybe_level, maybe_ts, maybe_message = parts
+        bracket_match = re.match(
+            r"^\[\s*(?P<level>\d+)\s*-\s*[^\]]+\]\s+\[(?P<date>[^\]]+)\]\s*(?P<message>.*)$",
+            line,
+        )
+        if bracket_match:
             try:
-                parsed_level = int(maybe_level)
+                parsed_level = int(bracket_match.group("level"))
             except (TypeError, ValueError):
                 parsed_level = None
-
             if parsed_level in {0, 1, 2}:
                 level_code = parsed_level
+                message = (bracket_match.group("message") or "").strip()
+
+        if level_code is None:
+            parts = line.split("-", 2)
+            if len(parts) == 3:
+                maybe_level, maybe_ts, maybe_message = parts
                 try:
-                    log_ts = int(maybe_ts)
+                    parsed_level = int(maybe_level)
                 except (TypeError, ValueError):
-                    log_ts = None
-                message = maybe_message.strip()
+                    parsed_level = None
+
+                if parsed_level in {0, 1, 2}:
+                    level_code = parsed_level
+                    try:
+                        log_ts = int(maybe_ts)
+                    except (TypeError, ValueError):
+                        log_ts = None
+                    message = maybe_message.strip()
 
         level_names = {
             0: "Bilgi",
@@ -376,11 +391,10 @@ class MonitoringStore:
                     if not text:
                         continue
                     at = item.get("time")
-                    detail_messages.append(f"[{at}] {text}" if at else str(text))
+                    merged_text = f"[{at}] {text}" if at else str(text)
+                    detail_messages.extend(self._split_detail_lines(merged_text))
                 elif item is not None:
-                    text = str(item).strip()
-                    if text:
-                        detail_messages.append(text)
+                    detail_messages.extend(self._split_detail_lines(item))
 
         if not detail_messages:
             detail_messages = [line for line in (row["detail_text"] or "").splitlines() if line.strip()]
@@ -403,6 +417,13 @@ class MonitoringStore:
             "has_warning": bool(row["has_warning"]),
             "fetched_at": row["fetched_at"],
         }
+
+    @staticmethod
+    def _split_detail_lines(raw_text: str) -> list[str]:
+        if raw_text is None:
+            return []
+        normalized = str(raw_text).replace("\\r\\n", "\n").replace("\\n", "\n")
+        return [line.strip() for line in normalized.splitlines() if line.strip()]
 
     def update_backup_log_detail(
         self,
