@@ -290,19 +290,14 @@ class MonitoringOrchestrator:
     def collect_log_clients(self):
         return self.store.list_log_clients()
 
-    def collect_client_log_overview(self, client_id: int):
-        return self.store.get_client_log_overview(client_id)
+    def collect_client_log_overview(self, client_filter: str):
+        return self.store.get_client_log_overview(client_filter)
 
-    def collect_backup_logs(self, *, client_id=None, query=None, page: int = 1, per_page: int = 50):
-        parsed_client_id = None
-        if client_id not in (None, "", "all"):
-            try:
-                parsed_client_id = int(client_id)
-            except (TypeError, ValueError):
-                parsed_client_id = None
+    def collect_backup_logs(self, *, client_filter=None, query=None, page: int = 1, per_page: int = 50):
+        parsed_client_filter = (client_filter or "").strip().lower() or None
 
         return self.store.get_backup_logs_page(
-            client_id=parsed_client_id,
+            client_filter=parsed_client_filter,
             query=query,
             page=page,
             per_page=per_page,

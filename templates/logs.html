@@ -17,7 +17,7 @@
             <select class="form-select" name="client_id">
                 <option value="">All Clients</option>
                 {% for c in clients %}
-                <option value="{{ c.client_id }}" {% if selected_client_id == (c.client_id|string) %}selected{% endif %}>
+                <option value="{{ c.client_filter }}" {% if selected_client_id == c.client_filter %}selected{% endif %}>
                     {{ c.client_name }} ({{ c.log_count }})
                 </option>
                 {% endfor %}
@@ -65,8 +65,8 @@
                     {% endif %}
                 </td>
                 <td>
-                    {% if log.client_id %}
-                    <a class="text-info text-decoration-none" href="/logs?client_id={{ log.client_id }}">{{ log.client_name or "-" }}</a>
+                    {% if log.client_filter %}
+                    <a class="text-info text-decoration-none" href="/logs?client_id={{ log.client_filter }}">{{ log.client_name or "-" }}</a>
                     {% else %}
                     {{ log.client_name or "-" }}
                     {% endif %}
