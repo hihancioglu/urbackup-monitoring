@@ -5,7 +5,7 @@ from pathlib import Path
 
 from analyzer import Analyzer
 from storage import MonitoringStore
-from time_utils import now_local
+from time_utils import from_unix, now_local
 from urbackup_api import UrBackupAPI
 
 
@@ -295,6 +295,39 @@ class MonitoringOrchestrator:
                 status_map[name] = item
         return status_map
 
+    @staticmethod
+    def _extract_last_seen_dt(status_item: dict, now=None):
+        if not isinstance(status_item, dict):
+            return None
+
+        candidate_keys = (
+            "lastseen",
+            "last_seen",
+            "lastonline",
+            "last_online",
+            "last_ping",
+            "lastping",
+        )
+        for key in candidate_keys:
+            value = status_item.get(key)
+            if value in (None, ""):
+                continue
+            converted = from_unix(value) if isinstance(value, (int, float)) else None
+            if converted:
+                return converted
+            try:
+                numeric_value = int(value)
+            except (TypeError, ValueError):
+                numeric_value = None
+            if numeric_value is not None:
+                converted = from_unix(numeric_value)
+                if converted:
+                    return converted
+
+        if status_item.get("online"):
+            return now or now_local()
+        return None
+
     def collect_dashboard_clients(self):
         usage = self.api.usage().get("usage", [])
         progress = self.api.progress()
@@ -325,6 +358,7 @@ class MonitoringOrchestrator:
                     "name": name,
                     "size": round(size / (1024**3), 2),
                     "last_backup": last_dt,
+                    "last_seen": self._extract_last_seen_dt(st, now=now),
                     "health": health,
                     "status_text": text,
                     "online": st.get("online", False),

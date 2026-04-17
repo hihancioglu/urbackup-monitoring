@@ -14,24 +14,25 @@
         <a href="/logs" class="btn btn-outline-info">Logs</a>
     </div>
 
-    <table class="table table-dark table-striped mt-3">
+    <table id="dashboardTable" class="table table-dark table-striped mt-3">
         <thead>
             <tr>
-                <th>Client</th>
-                <th>Online</th>
-                <th>Last Backup</th>
-                <th>Status</th>
-                <th>Disk (GB)</th>
-                <th>Active</th>
+                <th scope="col" role="button" data-sort-type="text">Client ↕</th>
+                <th scope="col" role="button" data-sort-type="text">Online ↕</th>
+                <th scope="col" role="button" data-sort-type="number">Last Backup ↕</th>
+                <th scope="col" role="button" data-sort-type="text">Status ↕</th>
+                <th scope="col" role="button" data-sort-type="number">Disk (GB) ↕</th>
+                <th scope="col" role="button" data-sort-type="number">Last Seen ↕</th>
+                <th scope="col" role="button" data-sort-type="text">Active ↕</th>
             </tr>
         </thead>
         <tbody>
 
         {% for c in clients %}
         <tr>
-            <td>{{ c.name }}</td>
+            <td data-sort-value="{{ c.name }}">{{ c.name }}</td>
 
-            <td>
+            <td data-sort-value="{{ 1 if c.online else 0 }}">
                 {% if c.online %}
                     <span class="badge bg-success">ONLINE</span>
                 {% else %}
@@ -39,7 +40,7 @@
                 {% endif %}
             </td>
 
-            <td>
+            <td data-sort-value="{{ c.last_backup.timestamp() if c.last_backup else 0 }}">
                 {% if c.last_backup %}
                     {{ c.last_backup.strftime("%d.%m %H:%M") }}
                 {% else %}
@@ -47,15 +48,23 @@
                 {% endif %}
             </td>
 
-            <td>
+            <td data-sort-value="{{ c.status_text }}">
                 <span class="badge bg-{{ c.health }}">
                     {{ c.status_text }}
                 </span>
             </td>
 
-            <td>{{ c.size }}</td>
+            <td data-sort-value="{{ c.size }}">{{ c.size }}</td>
 
-            <td>
+            <td data-sort-value="{{ c.last_seen.timestamp() if c.last_seen else 0 }}">
+                {% if c.last_seen %}
+                    {{ c.last_seen.strftime("%d.%m %H:%M") }}
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+
+            <td data-sort-value="{{ 1 if c.active else 0 }}">
                 {% if c.active %}
                     <span class="badge bg-primary">RUNNING</span>
                 {% else %}
@@ -70,6 +79,52 @@
     </table>
 
 </div>
+
+<script>
+(() => {
+    const table = document.getElementById("dashboardTable");
+    if (!table) return;
+
+    const headers = table.querySelectorAll("thead th");
+    const tbody = table.querySelector("tbody");
+    const sortState = { index: null, direction: 1 };
+
+    const getCellSortValue = (row, index) => {
+        const cell = row.children[index];
+        if (!cell) return "";
+        return cell.dataset.sortValue ?? cell.textContent.trim();
+    };
+
+    const compareValues = (a, b, type) => {
+        if (type === "number") {
+            return Number(a) - Number(b);
+        }
+        return String(a).localeCompare(String(b), "tr", { sensitivity: "base" });
+    };
+
+    headers.forEach((header, index) => {
+        header.addEventListener("click", () => {
+            const sortType = header.dataset.sortType || "text";
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+
+            if (sortState.index === index) {
+                sortState.direction *= -1;
+            } else {
+                sortState.index = index;
+                sortState.direction = 1;
+            }
+
+            rows.sort((rowA, rowB) => {
+                const valueA = getCellSortValue(rowA, index);
+                const valueB = getCellSortValue(rowB, index);
+                return compareValues(valueA, valueB, sortType) * sortState.direction;
+            });
+
+            rows.forEach((row) => tbody.appendChild(row));
+        });
+    });
+})();
+</script>
 
 </body>
 </html>
