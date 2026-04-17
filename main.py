@@ -249,8 +249,51 @@ class MonitoringOrchestrator:
         return activities
 
     def _build_status_map(self):
-        status = self.api.status().get("status", [])
-        return {item.get("name"): item for item in status}
+        return self._build_status_map_from_payload(self.api.status())
+
+    @staticmethod
+    def _is_truthy_flag(value) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value > 0
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return False
+
+    @classmethod
+    def _status_item_is_deleted(cls, item: dict) -> bool:
+        """
+        Detect UrBackup client rows that are marked as deleted/removed.
+
+        Different UrBackup versions/plugins may use different flag names.
+        Instead of relying on one exact key, we look for keys that include
+        delete/remove markers and evaluate their value as a boolean-like flag.
+        """
+        if not isinstance(item, dict):
+            return False
+
+        marker_tokens = ("delete", "deleted", "remove", "removed")
+        for key, value in item.items():
+            normalized_key = str(key).strip().lower()
+            if any(token in normalized_key for token in marker_tokens):
+                if cls._is_truthy_flag(value):
+                    return True
+        return False
+
+    @classmethod
+    def _build_status_map_from_payload(cls, status_payload: dict) -> dict:
+        status_items = status_payload.get("status", []) if isinstance(status_payload, dict) else []
+        status_map = {}
+        for item in status_items:
+            if not isinstance(item, dict):
+                continue
+            if cls._status_item_is_deleted(item):
+                continue
+            name = item.get("name")
+            if name:
+                status_map[name] = item
+        return status_map
 
     def collect_dashboard_clients(self):
         usage = self.api.usage().get("usage", [])
@@ -290,6 +333,26 @@ class MonitoringOrchestrator:
             )
 
         return sorted(clients, key=lambda item: (item.get("name") or "").lower())
+
+    def collect_debug_snapshot(self):
+        usage = self.api.usage()
+        status = self.api.status()
+        progress = self.api.progress()
+        filtered_status_map = self._build_status_map_from_payload(status)
+        raw_status_items = status.get("status", []) if isinstance(status, dict) else []
+
+        return {
+            "debug_enabled": self.debug_enabled,
+            "usage_keys": list(usage.keys()) if isinstance(usage, dict) else str(type(usage)),
+            "status_keys": list(status.keys()) if isinstance(status, dict) else str(type(status)),
+            "progress_count": len(progress) if isinstance(progress, list) else -1,
+            "raw_status_count": len(raw_status_items) if isinstance(raw_status_items, list) else -1,
+            "filtered_status_count": len(filtered_status_map),
+            "filtered_status_names": sorted(filtered_status_map.keys(), key=lambda item: item.lower()),
+            "usage": usage,
+            "status": status,
+            "progress": progress,
+        }
 
     def collect_log_clients(self):
         return self.store.list_log_clients()

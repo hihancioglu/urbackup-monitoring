@@ -98,19 +98,7 @@ def log_detail_api(log_id: int):
 
 @app.route("/debug")
 def debug():
-    usage = orchestrator.api.usage()
-    status = orchestrator.api.status()
-    progress = orchestrator.api.progress()
-
-    return {
-        "debug_enabled": orchestrator.debug_enabled,
-        "usage_keys": list(usage.keys()) if isinstance(usage, dict) else str(type(usage)),
-        "status_keys": list(status.keys()) if isinstance(status, dict) else str(type(status)),
-        "progress_count": len(progress) if isinstance(progress, list) else -1,
-        "usage": usage,
-        "status": status,
-        "progress": progress,
-    }
+    return orchestrator.collect_debug_snapshot()
 
 
 if __name__ == "__main__":
