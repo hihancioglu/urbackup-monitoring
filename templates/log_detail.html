@@ -37,11 +37,25 @@
     </div>
 
     <h5>Log Detail Messages</h5>
-    {% if log.detail_messages %}
+    <div class="small text-secondary mb-2">Seviye kodları: 0 = Bilgi, 1 = Uyarı, 2 = Hata.</div>
+    {% if log.detail_entries %}
     <ul class="list-group mb-3">
-        {% for message in log.detail_messages %}
+        {% for entry in log.detail_entries %}
         <li class="list-group-item bg-black text-light border-secondary">
-            <code class="text-light" style="white-space: pre-wrap;">{{ message }}</code>
+            <div class="d-flex gap-2 align-items-center mb-1 flex-wrap">
+                {% if entry.level_code is not none %}
+                <span class="badge bg-{{ entry.level_badge }}">{{ entry.level_code }} - {{ entry.level_name }}</span>
+                {% else %}
+                <span class="badge bg-secondary">-</span>
+                {% endif %}
+
+                {% if entry.timestamp_dt %}
+                <span class="small text-secondary">{{ entry.timestamp_dt.strftime("%d.%m.%Y %H:%M:%S") }} ({{ entry.timestamp }})</span>
+                {% elif entry.timestamp %}
+                <span class="small text-secondary">{{ entry.timestamp }}</span>
+                {% endif %}
+            </div>
+            <code class="text-light" style="white-space: pre-wrap;">{{ entry.message }}</code>
         </li>
         {% endfor %}
     </ul>

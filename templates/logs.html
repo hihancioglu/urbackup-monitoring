@@ -169,8 +169,22 @@
                 const level = payload.has_error ? "ERROR" : (payload.has_warning ? "WARN" : "OK");
                 logModalMetaEl.textContent =
                     `Log ID: ${payload.log_id} | Client: ${payload.client_name || "-"} | Action: ${payload.action || "-"} | Time: ${payload.created_at} | Level: ${level}`;
-                const lines = Array.isArray(payload.detail_messages) ? payload.detail_messages : [];
-                logModalBodyEl.textContent = lines.length ? lines.join("\n") : "Bu log kaydı için detay bulunamadı.";
+                const parsedEntries = Array.isArray(payload.detail_entries) ? payload.detail_entries : [];
+                if (parsedEntries.length) {
+                    const lines = parsedEntries.map((entry) => {
+                        const levelText = entry.level_code !== null && entry.level_code !== undefined
+                            ? `[${entry.level_code} - ${entry.level_name}]`
+                            : "[Seviye Yok]";
+                        const tsText = entry.timestamp_text
+                            ? `${entry.timestamp_text} (${entry.timestamp})`
+                            : (entry.timestamp ?? "-");
+                        return `${levelText} [${tsText}] ${entry.message || ""}`.trim();
+                    });
+                    logModalBodyEl.textContent = lines.join("\n");
+                } else {
+                    const lines = Array.isArray(payload.detail_messages) ? payload.detail_messages : [];
+                    logModalBodyEl.textContent = lines.length ? lines.join("\n") : "Bu log kaydı için detay bulunamadı.";
+                }
             } catch (error) {
                 logModalBodyEl.textContent = `Log detayı alınamadı: ${error}`;
             }

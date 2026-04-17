@@ -59,6 +59,53 @@ class MonitoringStore:
             conn.commit()
 
     @staticmethod
+    def _parse_detail_message(raw_line: str) -> dict:
+        line = (raw_line or "").strip()
+        level_code = None
+        log_ts = None
+        message = line
+
+        parts = line.split("-", 2)
+        if len(parts) == 3:
+            maybe_level, maybe_ts, maybe_message = parts
+            try:
+                parsed_level = int(maybe_level)
+            except (TypeError, ValueError):
+                parsed_level = None
+
+            if parsed_level in {0, 1, 2}:
+                level_code = parsed_level
+                try:
+                    log_ts = int(maybe_ts)
+                except (TypeError, ValueError):
+                    log_ts = None
+                message = maybe_message.strip()
+
+        level_names = {
+            0: "Bilgi",
+            1: "Uyarı",
+            2: "Hata",
+        }
+        level_badges = {
+            0: "success",
+            1: "warning",
+            2: "danger",
+        }
+        level_name = level_names.get(level_code, "Bilinmiyor")
+        level_badge = level_badges.get(level_code, "secondary")
+        timestamp_dt = from_unix(log_ts) if log_ts is not None else None
+
+        return {
+            "raw": line,
+            "message": message,
+            "level_code": level_code,
+            "level_name": level_name,
+            "level_badge": level_badge,
+            "timestamp": log_ts,
+            "timestamp_dt": timestamp_dt,
+        }
+
+    @staticmethod
     def _create_schema(conn: sqlite3.Connection):
         conn.executescript(
             """
@@ -335,6 +382,8 @@ class MonitoringStore:
         if not detail_messages:
             detail_messages = [line for line in (row["detail_text"] or "").splitlines() if line.strip()]
 
+        detail_entries = [self._parse_detail_message(item) for item in detail_messages]
+
         return {
             "log_id": row["log_id"],
             "client_name": row["client_name"],
@@ -346,6 +395,7 @@ class MonitoringStore:
             "lastact_payload": lastact_payload,
             "detail_payload": detail_payload,
             "detail_messages": detail_messages,
+            "detail_entries": detail_entries,
             "has_error": bool(row["has_error"]),
             "has_warning": bool(row["has_warning"]),
             "fetched_at": row["fetched_at"],

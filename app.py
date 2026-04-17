@@ -82,6 +82,20 @@ def log_detail_api(log_id: int):
         "has_error": bool(log_item["has_error"]),
         "has_warning": bool(log_item["has_warning"]),
         "detail_messages": log_item["detail_messages"],
+        "detail_entries": [
+            {
+                "level_code": entry["level_code"],
+                "level_name": entry["level_name"],
+                "timestamp": entry["timestamp"],
+                "timestamp_text": (
+                    entry["timestamp_dt"].strftime("%d.%m.%Y %H:%M:%S")
+                    if entry["timestamp_dt"]
+                    else None
+                ),
+                "message": entry["message"],
+            }
+            for entry in log_item.get("detail_entries", [])
+        ],
     }
 
 
