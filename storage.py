@@ -269,34 +269,37 @@ class MonitoringStore:
             rows = conn.execute(
                 """
                 SELECT
-                    b.client_id AS client_id,
-                    b.client_name AS client_name,
+                    LOWER(TRIM(b.client_name)) AS client_filter,
+                    MIN(TRIM(b.client_name)) AS client_name,
                     COUNT(*) AS log_count,
                     MAX(b.created_ts) AS last_log_ts
                 FROM backup_logs b
                 WHERE b.client_name IS NOT NULL AND b.client_name != ''
-                GROUP BY b.client_id, b.client_name
+                GROUP BY LOWER(TRIM(b.client_name))
                 ORDER BY client_name COLLATE NOCASE
                 """
             ).fetchall()
             return [dict(row) for row in rows]
 
-    def get_client_log_overview(self, client_id: int) -> dict | None:
+    def get_client_log_overview(self, client_filter: str) -> dict | None:
+        normalized_client_filter = (client_filter or "").strip().lower()
+        if not normalized_client_filter:
+            return None
+
         with self._connect() as conn:
             row = conn.execute(
                 """
                 SELECT
-                    client_id,
-                    MIN(client_name) AS client_name,
+                    MIN(client_id) AS client_id,
+                    MIN(TRIM(client_name)) AS client_name,
                     COUNT(*) AS total_logs,
                     SUM(CASE WHEN has_error = 1 THEN 1 ELSE 0 END) AS error_logs,
                     SUM(CASE WHEN has_warning = 1 THEN 1 ELSE 0 END) AS warning_logs,
                     MAX(created_ts) AS last_log_ts
                 FROM backup_logs
-                WHERE client_id = ?
-                GROUP BY client_id
+                WHERE LOWER(TRIM(client_name)) = ?
                 """,
-                (client_id,),
+                (normalized_client_filter,),
             ).fetchone()
 
             if not row:
@@ -436,7 +439,7 @@ class MonitoringStore:
     def get_backup_logs_page(
         self,
         *,
-        client_id: int | None = None,
+        client_filter: str | None = None,
         query: str | None = None,
         page: int = 1,
         per_page: int = 50,
@@ -448,9 +451,9 @@ class MonitoringStore:
         where_parts = []
         params: list = []
 
-        if client_id is not None:
-            where_parts.append("client_id = ?")
-            params.append(client_id)
+        if client_filter:
+            where_parts.append("LOWER(TRIM(client_name)) = ?")
+            params.append(client_filter)
 
         search = (query or "").strip()
         if search:
@@ -498,6 +501,7 @@ class MonitoringStore:
                     "log_id": row["log_id"],
                     "client_name": row["client_name"],
                     "client_id": row["client_id"],
+                    "client_filter": ((row["client_name"] or "").strip().lower()),
                     "action": row["action"],
                     "created_ts": created_ts,
                     "created_at": created_at,

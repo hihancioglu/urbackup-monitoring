@@ -18,7 +18,7 @@ def dashboard():
 
 @app.route("/logs")
 def logs():
-    selected_client_id = request.args.get("client_id", "").strip()
+    selected_client_filter = request.args.get("client_id", "").strip()
     query = request.args.get("q", "").strip()
     page = request.args.get("page", "1")
 
@@ -30,17 +30,14 @@ def logs():
     per_page = 50
     clients = orchestrator.collect_log_clients()
     log_page = orchestrator.collect_backup_logs(
-        client_id=selected_client_id,
+        client_filter=selected_client_filter,
         query=query,
         page=page_num,
         per_page=per_page,
     )
     client_overview = None
-    if selected_client_id:
-        try:
-            client_overview = orchestrator.collect_client_log_overview(int(selected_client_id))
-        except (TypeError, ValueError):
-            client_overview = None
+    if selected_client_filter:
+        client_overview = orchestrator.collect_client_log_overview(selected_client_filter)
 
     return render_template(
         "logs.html",
@@ -50,7 +47,7 @@ def logs():
         per_page=log_page["per_page"],
         total=log_page["total"],
         total_pages=log_page["total_pages"],
-        selected_client_id=selected_client_id,
+        selected_client_id=selected_client_filter,
         query=query,
         client_overview=client_overview,
     )
