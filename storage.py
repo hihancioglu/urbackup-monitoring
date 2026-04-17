@@ -184,6 +184,27 @@ class MonitoringStore:
                 ),
             )
 
+    def delete_clients_except(self, client_names: Iterable[str]) -> int:
+        normalized_names = sorted(
+            {
+                (name or "").strip()
+                for name in client_names
+                if isinstance(name, str) and (name or "").strip()
+            }
+        )
+
+        with self._connect() as conn:
+            if not normalized_names:
+                result = conn.execute("DELETE FROM clients")
+                return result.rowcount if result.rowcount is not None else 0
+
+            placeholders = ", ".join(["?"] * len(normalized_names))
+            result = conn.execute(
+                f"DELETE FROM clients WHERE client_name NOT IN ({placeholders})",
+                normalized_names,
+            )
+            return result.rowcount if result.rowcount is not None else 0
+
     def has_backup_log(self, log_id: int) -> bool:
         with self._connect() as conn:
             row = conn.execute(
