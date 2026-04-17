@@ -39,26 +39,40 @@
     <h5>Log Detail Messages</h5>
     <div class="small text-secondary mb-2">Seviye kodları: 0 = Bilgi, 1 = Uyarı, 2 = Hata.</div>
     {% if log.detail_entries %}
-    <ul class="list-group mb-3">
-        {% for entry in log.detail_entries %}
-        <li class="list-group-item bg-black text-light border-secondary">
-            <div class="d-flex gap-2 align-items-center mb-1 flex-wrap">
-                {% if entry.level_code is not none %}
-                <span class="badge bg-{{ entry.level_badge }}">{{ entry.level_code }} - {{ entry.level_name }}</span>
-                {% else %}
-                <span class="badge bg-secondary">-</span>
-                {% endif %}
-
-                {% if entry.timestamp_dt %}
-                <span class="small text-secondary">{{ entry.timestamp_dt.strftime("%d.%m.%Y %H:%M:%S") }} ({{ entry.timestamp }})</span>
-                {% elif entry.timestamp %}
-                <span class="small text-secondary">{{ entry.timestamp }}</span>
-                {% endif %}
-            </div>
-            <code class="text-light" style="white-space: pre-wrap;">{{ entry.message }}</code>
-        </li>
-        {% endfor %}
-    </ul>
+    <div class="table-responsive mb-3">
+        <table class="table table-dark table-striped table-bordered align-middle">
+            <thead>
+            <tr>
+                <th style="width: 180px;">Bilgi</th>
+                <th style="width: 240px;">Tarih</th>
+                <th>Mesaj</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for entry in log.detail_entries %}
+            <tr>
+                <td>
+                    {% if entry.level_code is not none %}
+                    <span class="badge bg-{{ entry.level_badge }}">{{ entry.level_name }}</span>
+                    {% else %}
+                    <span class="text-secondary">-</span>
+                    {% endif %}
+                </td>
+                <td class="small text-secondary">
+                    {% if entry.timestamp_dt %}
+                        {{ entry.timestamp_dt.strftime("%d.%m.%Y %H:%M:%S") }}
+                    {% elif entry.timestamp %}
+                        {{ entry.timestamp }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td><code class="text-light" style="white-space: pre-wrap;">{{ entry.message }}</code></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
     <div class="alert alert-secondary">Bu log kaydı için detay mesajı bulunamadı.</div>
     {% endif %}
