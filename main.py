@@ -258,14 +258,18 @@ class MonitoringOrchestrator:
 
         now = now_local()
         status_map = self._build_status_map()
+        usage_map = {
+            item.get("name"): item
+            for item in usage
+            if isinstance(item, dict) and item.get("name")
+        }
         progress_map = {p["name"]: p for p in progress}
 
         clients = []
-        for usage_item in usage:
-            name = usage_item["name"]
+        for name, st in status_map.items():
+            usage_item = usage_map.get(name, {})
             size = usage_item.get("used", 0)
 
-            st = status_map.get(name, {})
             health, text, last_dt = self.analyzer.compute_health(
                 last_ts=st.get("lastbackup"),
                 file_ok=st.get("file_ok", True),
@@ -285,7 +289,7 @@ class MonitoringOrchestrator:
                 }
             )
 
-        return clients
+        return sorted(clients, key=lambda item: (item.get("name") or "").lower())
 
     def collect_log_clients(self):
         return self.store.list_log_clients()
@@ -497,6 +501,10 @@ class MonitoringOrchestrator:
                 print(
                     f"[sync] download batch complete (new_logs_synced={synced}, processed={processed}/{len(combined)})"
                 )
+
+        deleted_clients = self.store.delete_clients_except(status_map.keys())
+        if deleted_clients > 0:
+            print(f"[sync] removed stale clients from local store (count={deleted_clients})")
 
         if max_seen_log_id > last_processed_log_id:
             self.store.set_sync_state("last_processed_log_id", max_seen_log_id)
