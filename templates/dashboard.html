@@ -42,7 +42,7 @@
 
             <td data-sort-value="{{ c.last_backup.timestamp() if c.last_backup else 0 }}">
                 {% if c.last_backup %}
-                    {{ c.last_backup.strftime("%d.%m %H:%M") }}
+                    {{ c.last_backup.strftime("%d.%m.%y %H:%M") }}
                 {% else %}
                     -
                 {% endif %}
@@ -58,7 +58,7 @@
 
             <td data-sort-value="{{ c.last_seen.timestamp() if c.last_seen else 0 }}">
                 {% if c.last_seen %}
-                    {{ c.last_seen.strftime("%d.%m %H:%M") }}
+                    {{ c.last_seen.strftime("%d.%m.%y %H:%M") }}
                 {% else %}
                     -
                 {% endif %}
