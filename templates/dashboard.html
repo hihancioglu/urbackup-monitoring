@@ -20,7 +20,7 @@
                 <th scope="col" role="button" data-sort-type="text">Client ↕</th>
                 <th scope="col" role="button" data-sort-type="text">Online ↕</th>
                 <th scope="col" role="button" data-sort-type="number">Last Backup ↕</th>
-                <th scope="col" role="button" data-sort-type="text">Status ↕</th>
+                <th scope="col" role="button" data-sort-type="duration">Status ↕</th>
                 <th scope="col" role="button" data-sort-type="number">Disk (GB) ↕</th>
                 <th scope="col" role="button" data-sort-type="number">Last Seen ↕</th>
                 <th scope="col" role="button" data-sort-type="text">Active ↕</th>
@@ -98,6 +98,22 @@
     const compareValues = (a, b, type) => {
         if (type === "number") {
             return Number(a) - Number(b);
+        }
+        if (type === "duration") {
+            const parseDuration = (value) => {
+                if (typeof value === "number") return value;
+                const text = String(value ?? "").trim().toLowerCase();
+                const match = text.match(/^(\d+(?:\.\d+)?)h$/);
+                if (match) return Number(match[1]);
+
+                const numeric = Number(text);
+                if (!Number.isNaN(numeric)) return numeric;
+                return Number.POSITIVE_INFINITY;
+            };
+
+            const diff = parseDuration(a) - parseDuration(b);
+            if (diff !== 0) return diff;
+            return String(a).localeCompare(String(b), "tr", { sensitivity: "base" });
         }
         return String(a).localeCompare(String(b), "tr", { sensitivity: "base" });
     };
