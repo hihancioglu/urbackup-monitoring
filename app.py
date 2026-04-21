@@ -72,7 +72,7 @@ def log_detail_api(log_id: int):
         "client_id": log_item["client_id"],
         "action": log_item["action"],
         "created_at": (
-            log_item["created_at"].strftime("%d.%m.%Y %H:%M:%S")
+            log_item["created_at"].strftime("%d.%m.%y %H:%M:%S")
             if log_item["created_at"]
             else "-"
         ),
@@ -85,7 +85,7 @@ def log_detail_api(log_id: int):
                 "level_name": entry["level_name"],
                 "timestamp": entry["timestamp"],
                 "timestamp_text": (
-                    entry["timestamp_dt"].strftime("%d.%m.%Y %H:%M:%S")
+                    entry["timestamp_dt"].strftime("%d.%m.%y %H:%M:%S")
                     if entry["timestamp_dt"]
                     else None
                 ),
